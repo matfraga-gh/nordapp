@@ -907,3 +907,10 @@ a { color: var(--ocean); text-decoration: none; }
   opacity: 0.65;
   font-weight: 500;
 }
+
+/* Bloco de ações no topo das views (container com max-width igual ao resto) */
+.module-actions {
+  max-width: 480px;
+  margin: 0 auto 10px;
+}
+.module-actions .btn-primary { width: 100%; }
