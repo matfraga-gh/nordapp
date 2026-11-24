@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.2.0 · greeting + avatar + datetime · 2026-11-23");
+console.log("NORDAPP v0.2.2 · greeting + avatar + datetime · 2026-11-23");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -36,35 +36,54 @@ var ROLE_LABELS = {
 };
 
 // ── TIPOS DE FORNECEDOR ───────────────────────────────────────────────
+// 12 tipos de fornecedor seguindo padrão contábil brasileiro (NBC/CPC)
 var FORNECEDOR_TIPOS = [
-  { id: 'empregado',   label: 'Empregado',               emoji: '👤' },
-  { id: 'prestador',   label: 'Prestador eventual',      emoji: '🔧' },
-  { id: 'utilidade',   label: 'Utilidade (luz/gás/net)', emoji: '💡' },
-  { id: 'condominio',  label: 'Condomínio',              emoji: '🏢' },
-  { id: 'profissional',label: 'Honorário profissional',  emoji: '💼' },
-  { id: 'produto',     label: 'Produto / regular',       emoji: '📦' },
-  { id: 'imposto',     label: 'Imposto / taxa',          emoji: '🧾' },
-  { id: 'canal_venda', label: 'Canal de venda',          emoji: '🌐' },
-  { id: 'comissario',  label: 'Comissário',              emoji: '🤝' },
-  { id: 'outros',      label: 'Outros',                  emoji: '•'  }
+  { id: 'empregado',          label: 'Pessoal / Funcionário',              emoji: '👤' },
+  { id: 'prestador_pj',       label: 'Prestador de serviço PJ',            emoji: '🔧' },
+  { id: 'bens_consumo',       label: 'Fornecedor de bens / produtos',      emoji: '📦' },
+  { id: 'utilidade',          label: 'Concessionária / Utilidade pública', emoji: '💡' },
+  { id: 'financeira',         label: 'Instituição financeira',             emoji: '🏦' },
+  { id: 'governo',            label: 'Governo / Fisco',                    emoji: '🏛' },
+  { id: 'canal_venda',        label: 'Canal de distribuição (OTA)',        emoji: '🌐' },
+  { id: 'agente_comercial',   label: 'Agente comercial / Parceiro',        emoji: '🤝' },
+  { id: 'condominio',         label: 'Condomínio / Associação',            emoji: '🏢' },
+  { id: 'parte_relacionada',  label: 'Parte relacionada (sócios)',         emoji: '👑' },
+  { id: 'credor_financeiro',  label: 'Credor financeiro (empréstimo)',     emoji: '💳' },
+  { id: 'outros',             label: 'Outros',                             emoji: '•'  }
 ];
 function tipoLabel(tipoId){
   var t = FORNECEDOR_TIPOS.find(function(x){return x.id === tipoId;});
   return t ? (t.emoji + ' ' + t.label) : null;
 }
 // Sugere tipo baseado na categoria legacy do app antigo
-function sugerirTipoDeCategoria(cat){
+function sugerirTipoDeCategoria(cat, nome){
+  // Nome tem prioridade sobre categoria quando é claro
+  var n = (nome || '').toLowerCase();
+  if(n.indexOf('bradesco') >= 0 || n.indexOf('itau') >= 0 || n.indexOf('inter') >= 0 || n.indexOf('santander') >= 0 ||
+     n.indexOf('caixa econ') >= 0 || n.indexOf('stone') >= 0 || n.indexOf('stripe') >= 0 || n.indexOf('mercado pago') >= 0 ||
+     n.indexOf('booking pagamentos') >= 0 || n.indexOf('pagseguro') >= 0) return 'financeira';
+  if(n === 'matias' || n === 'lao' || n === 'eze' || n === 'ezequiel') return 'parte_relacionada';
+  // Empréstimos específicos (credor financeiro, distinto do banco normal)
+  if(n.indexOf('empréstimo') >= 0 || n.indexOf('emprestimo') >= 0 || n.indexOf('financiamento') >= 0) return 'credor_financeiro';
+
   if(!cat) return 'outros';
   var c = cat.toLowerCase();
-  if(c.indexOf('salar') >= 0 || c.indexOf('fgts') >= 0 || c.indexOf('inss') >= 0) return 'empregado';
-  if(c.indexOf('conta') >= 0 || c.indexOf('honorar') >= 0 || c.indexOf('advo') >= 0) return 'profissional';
-  if(c.indexOf('energia') >= 0 || c.indexOf('gas') >= 0 || c.indexOf('agua') >= 0 || c.indexOf('internet') >= 0 || c.indexOf('telefo') >= 0) return 'utilidade';
+
+  // Financeiras primeiro (antes de comiss genérico)
+  if(c.indexOf('cartao') >= 0 || c.indexOf('banca') >= 0 || c.indexOf('cartão') >= 0) return 'financeira';
+  if(c.indexOf('comissoes booking') >= 0 || c.indexOf('comisoes booking') >= 0) return 'canal_venda';
+  if(c.indexOf('emprestimo') >= 0 || c.indexOf('empréstimo') >= 0 || c.indexOf('parcela emprestimo') >= 0) return 'credor_financeiro';
+
+  if(c.indexOf('salar') >= 0 || c.indexOf('fgts') >= 0 || c.indexOf('inss') >= 0 || c.indexOf('vale') >= 0) return 'empregado';
+  if(c.indexOf('conta') >= 0 || c.indexOf('honorar') >= 0 || c.indexOf('advo') >= 0) return 'prestador_pj';
+  if(c.indexOf('energia') >= 0 || c.indexOf('gas') >= 0 || c.indexOf('agua') >= 0 || c.indexOf('internet') >= 0 || c.indexOf('telefo') >= 0 || c.indexOf('hosting') >= 0 || c.indexOf('sistema') >= 0) return 'utilidade';
   if(c.indexOf('consorcio') >= 0 || c.indexOf('condomin') >= 0) return 'condominio';
-  if(c.indexOf('produto') >= 0 || c.indexOf('material') >= 0 || c.indexOf('suprim') >= 0 || c.indexOf('bens') >= 0) return 'produto';
-  if(c.indexOf('simples') >= 0 || c.indexOf('impost') >= 0 || c.indexOf('iptu') >= 0 || c.indexOf('receita federal') >= 0 || c.indexOf('parcelamento') >= 0) return 'imposto';
+  if(c.indexOf('produto') >= 0 || c.indexOf('material') >= 0 || c.indexOf('suprim') >= 0 || c.indexOf('bens') >= 0 || c.indexOf('substitui') >= 0 || c.indexOf('fardamento') >= 0 || c.indexOf('frete') >= 0) return 'bens_consumo';
+  if(c.indexOf('simples') >= 0 || c.indexOf('impost') >= 0 || c.indexOf('iptu') >= 0 || c.indexOf('receita federal') >= 0 || c.indexOf('parcelamento') >= 0 || c.indexOf('taxa') >= 0) return 'governo';
   if(c.indexOf('booking') >= 0 || c.indexOf('airbnb') >= 0) return 'canal_venda';
-  if(c.indexOf('comiss') >= 0 || c.indexOf('agente') >= 0) return 'comissario';
-  if(c.indexOf('manuten') >= 0 || c.indexOf('reparo') >= 0 || c.indexOf('lavander') >= 0 || c.indexOf('cafe') >= 0) return 'prestador';
+  if(c.indexOf('agente') >= 0 || c.indexOf('comiss') >= 0) return 'agente_comercial';
+  if(c.indexOf('manuten') >= 0 || c.indexOf('reparo') >= 0 || c.indexOf('lavander') >= 0 || c.indexOf('cafe') >= 0 || c.indexOf('limpeza') >= 0) return 'prestador_pj';
+  if(c.indexOf('lanche') >= 0 || c.indexOf('publicidade') >= 0 || c.indexOf('propaganda') >= 0 || c.indexOf('devoluc') >= 0) return 'outros';
   return 'outros';
 }
 
@@ -211,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.2.0 · build 2026-11-23";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.2.2 · build 2026-11-23";
 }
 
 function renderPainelGrid(){
@@ -378,7 +397,7 @@ function renderFornecedoresList(){
     });
   }
   if(tipoFilter){
-    list = list.filter(function(f){ return (f.tipo || sugerirTipoDeCategoria(f.categoria)) === tipoFilter; });
+    list = list.filter(function(f){ return (f.tipo || sugerirTipoDeCategoria(f.categoria, f.nome)) === tipoFilter; });
   }
 
   // Detectar duplicados por nome (case insensitive, trim)
@@ -409,7 +428,7 @@ function renderFornecedoresList(){
   }
 
   var html = list.map(function(f){
-    var tipoAtual = f.tipo || sugerirTipoDeCategoria(f.categoria);
+    var tipoAtual = f.tipo || sugerirTipoDeCategoria(f.categoria, f.nome);
     var tipoLbl = tipoLabel(tipoAtual);
     var tipoClass = f.tipo ? "" : " no-tipo";
     var tipoSuffix = f.tipo ? "" : " ·sug";
@@ -454,7 +473,7 @@ function openFornecedorModal(id){
   _editingFornecedorId = id || null;
   document.getElementById("forneModalTitle").textContent = f ? ('✎ ' + (f.nome || 'Fornecedor')) : 'Novo fornecedor';
 
-  var tipoSugerido = f ? (f.tipo || sugerirTipoDeCategoria(f.categoria)) : '';
+  var tipoSugerido = f ? (f.tipo || sugerirTipoDeCategoria(f.categoria, f.nome)) : '';
   document.getElementById("ffNome").value = f ? (f.nome || "") : "";
   document.getElementById("ffTipo").value = tipoSugerido;
   document.getElementById("ffCnpj").value = f ? (f.cnpj_cpf || "") : "";
@@ -557,6 +576,63 @@ function goToFornecedores(){
   showView("viewFornecedores");
 }
 
+async function exportFornecedoresExcel(){
+  if(typeof XLSX === 'undefined'){
+    showToast("Biblioteca XLSX ainda carregando. Tente novamente em 2s.");
+    return;
+  }
+  if(!_allFornecedores.length){
+    showToast("Lista vazia. Carregue os fornecedores primeiro.");
+    return;
+  }
+  var data = _allFornecedores.map(function(f){
+    var sugerido = sugerirTipoDeCategoria(f.categoria, f.nome);
+    var t = FORNECEDOR_TIPOS.find(function(x){return x.id === sugerido;});
+    return {
+      id: f.id,
+      nome: f.nome || "",
+      categoria_legacy: f.categoria || "",
+      tipo_sugerido: sugerido + (t ? " · " + t.label : ""),
+      tipo_definitivo: f.tipo || "",
+      cnpj_cpf: f.cnpj_cpf || "",
+      email: f.email || "",
+      telefone: f.telefone || "",
+      banco_pagto: f.banco_pagto || "",
+      chave_pix: f.chave_pix || "",
+      comentarios: f.comentarios || "",
+      ativo: (f.ativo === false ? "NAO" : "SIM")
+    };
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:5},{wch:30},{wch:30},{wch:32},{wch:20},{wch:22},{wch:30},{wch:18},{wch:14},{wch:26},{wch:50},{wch:6}];
+  XLSX.utils.book_append_sheet(wb, ws, "Fornecedores");
+
+  // Sheet 2: instruções
+  var instr = [["COMO PREENCHER ESTA PLANILHA"],[""],
+    ["1. Preencha a coluna 'tipo_definitivo' com UMA das opções abaixo:"],[""]];
+  FORNECEDOR_TIPOS.forEach(function(t){
+    instr.push(["   " + t.id + "  →  " + t.emoji + " " + t.label]);
+  });
+  instr.push([""],
+    ["2. A coluna 'tipo_sugerido' tem uma sugestão automática baseada na categoria legacy."],
+    ["   Pode copiar o id (ex: 'empregado') para 'tipo_definitivo' se concordar."],[""],
+    ["3. Fornecedores duplicados (mesmo nome): mantenha apenas UMA linha."],
+    ["   Exclua as linhas extras ou marque ativo=NAO."],[""],
+    ["4. Pode preencher: email, telefone, cnpj_cpf, banco_pagto, chave_pix, comentarios."],[""],
+    ["5. Ativo: SIM para ativos, NAO para dados antigos que não usamos mais."],[""],
+    ["6. Após preencher, envie este arquivo para o Matias para importação."],[""],
+    ["Total atual: " + data.length + " fornecedores"]);
+  var wsInstr = XLSX.utils.aoa_to_sheet(instr);
+  wsInstr['!cols'] = [{wch: 90}];
+  XLSX.utils.book_append_sheet(wb, wsInstr, "Instruções");
+
+  var stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "nordapp_fornecedores_" + stamp + ".xlsx");
+  showToast("Excel gerado: " + data.length + " fornecedores");
+}
+
 function escapeHtml(s){
   if(s == null) return "";
   return String(s).replace(/[&<>"']/g, function(c){
@@ -585,6 +661,9 @@ function init(){
   });
 
   // ─── Módulo Fornecedores ───
+  var btnExportF = document.getElementById("btnExportFornecedores");
+  if(btnExportF) btnExportF.addEventListener("click", exportFornecedoresExcel);
+
   var btnNovoF = document.getElementById("btnNovoFornecedor");
   if(btnNovoF) btnNovoF.addEventListener("click", function(){
     if(!canEditFornecedores()){ showToast("Você não tem permissão"); return; }
