@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.8.0 · Módulo Retiros Sócios · 2026-11-24");
+console.log("NORDAPP v0.8.2 · Fix limit 500 comprobantes · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.8.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.8.2 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -717,7 +717,7 @@ async function loadComprobantes(){
   var el = document.getElementById("compList");
   el.innerHTML = '<div class="loading">Carregando...</div>';
   // Join com fornecedor + categoria
-  var q = "comprobantes?select=*,fornecedores(nome,tipo),categorias_dre(nome,grupo)&order=data_competencia.desc&limit=500";
+  var q = "comprobantes?select=*,fornecedores(nome,tipo),categorias_dre(nome,grupo)&order=data_competencia.desc&limit=10000";
   var data = await api(q);
   if(!data){
     el.innerHTML = '<div class="empty"><div class="empty-icon">⚠</div>Erro ao carregar.</div>';
@@ -3061,6 +3061,7 @@ async function populateSocioSelect(){
       var r = await api("fornecedores", "POST", {
         nome: nome,
         tipo: 'parte_relacionada',
+        categoria: 'Sócio',
         comentarios: '[SÓCIO NORDESTINA]'
       });
       var created = Array.isArray(r) ? r[0] : r;
@@ -3185,6 +3186,7 @@ async function goToRetiros(){
   showView("viewRetiros");
   if(_allFornecedores.length === 0) await loadFornecedores();
   if(_allCategorias.length === 0) await loadCategorias();
+  await loadComprobantes(); // força refresh (pode ter novos retiros carregados fora da UI)
   await populateSocioSelect();
   await ensureCategoriaRetiros();
   if(!document.getElementById("retDataIni").value){
