@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.6.0 · Reportes de Ingresos (ocupação + canal + apto) · 2026-11-24");
+console.log("NORDAPP v0.6.1 · Ingresos fix checkout + apto · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -1793,7 +1793,7 @@ function dreGoMes(delta){
 // Schema reservas hardcodado (confirmado 2026-11-24)
 // Mês de competência = mês do checkin
 async function loadReservasDRE(){
-  var data = await api("reservas?select=id,checkin,canal,total,adic_valor,svc_cozinheira,svc_early_checkin,svc_late_checkout,svc_outros_valor,devolucao,status&limit=5000");
+  var data = await api("reservas?select=id,checkin,checkout,apto,canal,total,adic_valor,svc_cozinheira,svc_early_checkin,svc_late_checkout,svc_outros_valor,devolucao,status&limit=5000");
   return { ok: !!data, rows: data || [] };
 }
 
@@ -2250,35 +2250,18 @@ async function renderIngresos(){
     '<div>Total</div><div>'+list.length+'</div><div>'+noitesOcupadas+'</div><div>'+fmtMoney(receita)+'</div><div>100%</div>' +
   '</div></div>';
 
-  // Breakdown por apto
-  // Carrega aptos (campo apto da reserva)
+  // Breakdown por apto (usa mesmo cache de reservas)
   var aptoMap = {};
-  _ingReservas.forEach(function(r){
-    // precisa buscar o apto; re-fetch para incluir 'apto'
+  list.forEach(function(r){
+    var ap = (r.apto || "—").trim() || "—";
+    if(!aptoMap[ap]) aptoMap[ap] = { reservas: 0, noites: 0, receita: 0 };
+    aptoMap[ap].reservas++;
+    if(r.checkin && r.checkout){
+      var n = noitesEntre(r.checkin, r.checkout);
+      if(n > 0) aptoMap[ap].noites += n;
+    }
+    aptoMap[ap].receita += reservaReceita(r);
   });
-  // Re-fetch com apto incluido (já no cache? não — loadReservasDRE só traz certos campos)
-  var aptoRes = await api("reservas?select=id,apto,checkin,checkout,total,adic_valor,svc_cozinheira,svc_early_checkin,svc_late_checkout,svc_outros_valor,devolucao,status,canal&limit=5000");
-  if(aptoRes){
-    var aptoList = aptoRes.filter(function(r){
-      if(!r.checkin) return false;
-      var ck = String(r.checkin).slice(0,10);
-      if(per.ini && ck < per.ini) return false;
-      if(per.fim && ck > per.fim) return false;
-      var st = String(r.status || "").toLowerCase();
-      if(st.indexOf("cancel") >= 0) return false;
-      return true;
-    });
-    aptoList.forEach(function(r){
-      var ap = (r.apto || "—").trim() || "—";
-      if(!aptoMap[ap]) aptoMap[ap] = { reservas: 0, noites: 0, receita: 0 };
-      aptoMap[ap].reservas++;
-      if(r.checkin && r.checkout){
-        var n = noitesEntre(r.checkin, r.checkout);
-        if(n > 0) aptoMap[ap].noites += n;
-      }
-      aptoMap[ap].receita += reservaReceita(r);
-    });
-  }
   var aptoArr = Object.keys(aptoMap).map(function(k){ return { apto:k, ...aptoMap[k] }; })
     .sort(function(a,b){ return b.receita - a.receita; });
 
