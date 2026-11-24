@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   NORDAPP · styles.css v0.3.0 · Comprobantes
+   NORDAPP · styles.css v0.3.1 · Período + layout vertical + Categorias CRUD
    Paleta ocean + sand · Inter (todo sans-serif, mais legível)
    Siguindo patrão AZUCAPP: views independentes, ações inline
    ═════════════════════════════════════════════════════════════════════ */
@@ -721,3 +721,186 @@ a { color: var(--ocean); text-decoration: none; }
   line-height: 1.5;
 }
 .pag-info strong { color: var(--ocean); }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.3.1 · Período filter · Comp item vertical · Categorias
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* Filtro de período */
+.periodo-row {
+  max-width: 480px;
+  margin: 0 auto 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.periodo-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.chip-btn {
+  background: transparent;
+  color: rgba(255,255,255,0.85);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 14px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all .12s;
+}
+.chip-btn:hover { background: rgba(255,255,255,0.1); }
+.chip-btn.active {
+  background: var(--sand);
+  color: var(--ocean);
+  border-color: var(--sand);
+  font-weight: 700;
+}
+.periodo-datas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.periodo-datas .filter-input {
+  flex: 1;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.periodo-sep {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Comp item vertical estilo AZUCAPP */
+.comp-item {
+  position: relative;
+  padding: 14px 14px 12px;
+}
+.comp-item-title {
+  font-weight: 700;
+  color: var(--ocean);
+  font-size: 15px;
+  letter-spacing: -0.1px;
+  line-height: 1.3;
+  padding-right: 100px; /* espaço para chip estado */
+}
+.comp-item-sub {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.7;
+  margin-top: 2px;
+  padding-right: 100px;
+}
+.comp-item-lines {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.comp-item-line {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.85;
+}
+.comp-item-line b { font-weight: 600; opacity: 1; color: var(--ocean); }
+.comp-item-line.valor {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  opacity: 1;
+  margin-top: 2px;
+  letter-spacing: -0.2px;
+}
+.comp-item-line.saldo {
+  font-size: 12px;
+  color: #b47a0e;
+  font-weight: 600;
+}
+.comp-estado-topright {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+}
+.comp-item-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* Actions inline (ícones no estilo AZUCAPP) */
+.comp-item-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--sand-dark);
+  justify-content: flex-end;
+}
+.comp-item-actions button {
+  background: transparent;
+  border: 1px solid var(--sand-dark);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  min-width: 36px;
+}
+.comp-item-actions button:hover { background: var(--sand-mid); }
+.comp-item-actions button.primary {
+  background: var(--ocean);
+  color: var(--white);
+  border-color: var(--ocean);
+  flex: 1;
+  max-width: 200px;
+}
+.comp-item-actions button.primary:hover { background: var(--ocean-mid); }
+
+/* Categorias list */
+.cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.cat-group-header {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.75);
+  margin: 10px 0 4px;
+  padding: 0 4px;
+  font-weight: 600;
+}
+.cat-item {
+  background: var(--sand);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform .1s;
+}
+.cat-item:hover { transform: translateY(-1px); background: var(--sand-mid); }
+.cat-item-nome {
+  font-weight: 600;
+  color: var(--ocean);
+  font-size: 14px;
+}
+.cat-item-count {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.65;
+  font-weight: 500;
+}

@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=0.3.0">
+<link rel="stylesheet" href="styles.css?v=0.3.1">
 </head>
 <body>
 
@@ -212,10 +212,28 @@
       </div>
     </div>
 
+    <!-- Filtro de período -->
+    <div class="periodo-row">
+      <div class="periodo-presets">
+        <button class="chip-btn" data-periodo="mes_atual">Mês atual</button>
+        <button class="chip-btn" data-periodo="mes_anterior">Mês anterior</button>
+        <button class="chip-btn" data-periodo="ano_atual">Ano</button>
+        <button class="chip-btn" data-periodo="tudo">Tudo</button>
+      </div>
+      <div class="periodo-datas">
+        <input type="date" id="compDataIni" class="filter-input">
+        <span class="periodo-sep">até</span>
+        <input type="date" id="compDataFim" class="filter-input">
+      </div>
+    </div>
+
     <!-- KPI mini bar -->
     <div class="kpi-row" id="compKpis"></div>
 
-    <button class="btn-primary" id="btnNovoComp" style="width:100%;margin-bottom:10px">+ Novo comprobante</button>
+    <button class="btn-primary" id="btnNovoComp" style="width:100%;margin-bottom:8px">+ Novo comprobante</button>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn-ghost" id="btnExportComps">⬇ Descargar Excel</button>
+    </div>
 
     <div class="filter-row">
       <input type="text" id="compSearch" placeholder="Buscar descrição, fornecedor..." class="filter-input">
@@ -238,11 +256,11 @@
     </div>
     <div class="filter-row">
       <select id="compCategoriaFilter" class="filter-select">
-        <option value="">Todas categorias DRE</option>
+        <option value="">Todas categorias</option>
       </select>
       <select id="compOrderBy" class="filter-select">
-        <option value="competencia_desc">Competência · recente</option>
-        <option value="competencia_asc">Competência · antiga</option>
+        <option value="competencia_desc">Mês ref. · recente</option>
+        <option value="competencia_asc">Mês ref. · antigo</option>
         <option value="valor_desc">Valor · maior</option>
         <option value="vencimento_asc">Vencimento próximo</option>
       </select>
@@ -270,7 +288,7 @@
 
     <div class="row-2">
       <div>
-        <label>Categoria DRE <span class="req">*</span></label>
+        <label>Categoria <span class="req">*</span></label>
         <select id="cfCategoria">
           <option value="">Selecionar...</option>
           <option value="__nova__" style="font-style:italic">+ Criar nova categoria</option>
@@ -289,9 +307,9 @@
 
     <div class="row-2">
       <div>
-        <label>Data competência <span class="req">*</span></label>
+        <label>Mês de referência <span class="req">*</span></label>
         <input type="date" id="cfCompetencia">
-        <div class="field-hint">Impacto no DRE</div>
+        <div class="field-hint">A qual mês pertence o gasto (independe de quando é pago)</div>
       </div>
       <div>
         <label>Data vencimento</label>
@@ -376,11 +394,11 @@
   </div>
 </div>
 
-<!-- Modal Nova Categoria DRE -->
+<!-- Modal Categoria (criar/editar) -->
 <div class="overlay" id="modalCat">
   <div class="modal modal-sm">
     <div class="modal-head">
-      <span class="modal-title">Nova categoria DRE</span>
+      <span class="modal-title" id="catModalTitle">Nova categoria</span>
       <button class="btn-x" id="btnCloseCat">×</button>
     </div>
 
@@ -396,10 +414,30 @@
       <option value="nao_operacional">Não operacional</option>
       <option value="receita">Receita</option>
     </select>
+    <div class="field-hint">Define em qual seção do Painel de Resultados aparece</div>
 
     <div class="modal-footer">
-      <button class="btn-primary" id="btnSaveCat">Criar categoria</button>
+      <button class="btn-secondary" id="btnDeleteCat" style="display:none">Apagar</button>
+      <button class="btn-primary" id="btnSaveCat">Salvar</button>
     </div>
+  </div>
+</div>
+
+<!-- ══ MÓDULO CATEGORIAS (Admin) ═══════════════════════════════════════ -->
+<div id="viewCategorias" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubAdmin">← Admin</button>
+      <div class="module-title-block">
+        <div class="module-title">🗂 Categorias</div>
+        <div class="module-subtitle" id="catSubtitle">Categorias de gastos (DRE)</div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btnNovaCat" style="width:100%;margin-bottom:10px">+ Nova categoria</button>
+    <div class="field-hint" style="text-align:center;margin-bottom:12px;color:rgba(255,255,255,0.6)">Ao apagar, os comprobantes dessa categoria passam para "Outros"</div>
+
+    <div id="catList" class="cat-list"><div class="loading">Carregando...</div></div>
   </div>
 </div>
 
@@ -424,6 +462,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.3.0"></script>
+<script src="app.js?v=0.3.1"></script>
 </body>
 </html>

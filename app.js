@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.3.0 · Comprobantes + Categorias DRE + Pagamentos · 2026-11-24");
+console.log("NORDAPP v0.3.1 · Período + layout vertical + Categorias CRUD · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.3.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.3.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -303,6 +303,7 @@ var HUB_CONFIG = {
   hubAdmin: {
     view: "viewHubAdmin",
     tiles: [
+      { id:"categorias", icon:"🗂", title:"Categorias", sub:"Gastos (DRE)" },
       { id:"usuarios", icon:"👥", title:"Usuários", sub:"CRUD", onlyRoles:["master"] },
       { id:"permissoes", icon:"🔐", title:"Permissões", sub:"Por role", onlyRoles:["master"] },
       { id:"configuracoes", icon:"⚙", title:"Configurações", sub:"Regime SN, taxas, dados LG" },
@@ -345,6 +346,7 @@ function goToModule(moduleId, parentHubId, title){
   // Módulos já implementados
   if(moduleId === "fornecedores"){ goToFornecedores(); return; }
   if(moduleId === "comprobantes"){ goToComprobantes(); return; }
+  if(moduleId === "categorias"){ goToCategorias(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -720,10 +722,45 @@ async function loadComprobantes(){
   document.getElementById("compSubtitle").textContent = data.length + " comprobante" + (data.length !== 1 ? "s" : "");
 }
 
+// Helper período: devolve {dataIni, dataFim} a partir do filtro atual
+function getFilterPeriodo(){
+  var ini = document.getElementById("compDataIni").value || null;
+  var fim = document.getElementById("compDataFim").value || null;
+  return { ini: ini, fim: fim };
+}
+
+function compsFiltrados(opts){
+  opts = opts || {};
+  var search = (document.getElementById("compSearch").value || "").toLowerCase().trim();
+  var estF = document.getElementById("compEstadoFilter").value;
+  var ccF  = document.getElementById("compCentroFilter").value;
+  var catF = document.getElementById("compCategoriaFilter").value;
+  var per  = getFilterPeriodo();
+
+  var list = _allComps.slice();
+  if(per.ini) list = list.filter(function(c){ return (c.data_competencia || "") >= per.ini; });
+  if(per.fim) list = list.filter(function(c){ return (c.data_competencia || "") <= per.fim; });
+  if(estF) list = list.filter(function(c){ return c.estado === estF; });
+  if(ccF)  list = list.filter(function(c){ return c.centro_custo === ccF; });
+  if(catF) list = list.filter(function(c){ return String(c.categoria_dre_id) === catF; });
+  if(search){
+    list = list.filter(function(c){
+      var forn = c.fornecedores ? (c.fornecedores.nome || "") : "";
+      return (c.descricao || "").toLowerCase().indexOf(search) >= 0
+          || forn.toLowerCase().indexOf(search) >= 0;
+    });
+  }
+  return list;
+}
+
 function renderCompKpis(){
+  // KPIs em cima consideram só o período (não os outros filtros)
+  var per = getFilterPeriodo();
   var pendentes = 0, pagos = 0, qtdPend = 0;
   _allComps.forEach(function(c){
     if(c.estado === 'anulado') return;
+    if(per.ini && (c.data_competencia || "") < per.ini) return;
+    if(per.fim && (c.data_competencia || "") > per.fim) return;
     var tot = Number(c.valor_total) || 0;
     var pg = Number(c.valor_pago) || 0;
     pendentes += (tot - pg);
@@ -737,23 +774,9 @@ function renderCompKpis(){
 }
 
 function renderCompList(){
-  var search = (document.getElementById("compSearch").value || "").toLowerCase().trim();
-  var estF = document.getElementById("compEstadoFilter").value;
-  var ccF  = document.getElementById("compCentroFilter").value;
-  var catF = document.getElementById("compCategoriaFilter").value;
   var ord  = document.getElementById("compOrderBy").value;
+  var list = compsFiltrados();
 
-  var list = _allComps.slice();
-  if(estF) list = list.filter(function(c){ return c.estado === estF; });
-  if(ccF)  list = list.filter(function(c){ return c.centro_custo === ccF; });
-  if(catF) list = list.filter(function(c){ return String(c.categoria_dre_id) === catF; });
-  if(search){
-    list = list.filter(function(c){
-      var forn = c.fornecedores ? (c.fornecedores.nome || "") : "";
-      return (c.descricao || "").toLowerCase().indexOf(search) >= 0
-          || forn.toLowerCase().indexOf(search) >= 0;
-    });
-  }
   if(ord === "competencia_asc") list.sort(function(a,b){ return (a.data_competencia||"").localeCompare(b.data_competencia||""); });
   else if(ord === "valor_desc") list.sort(function(a,b){ return Number(b.valor_total) - Number(a.valor_total); });
   else if(ord === "vencimento_asc") list.sort(function(a,b){
@@ -763,9 +786,13 @@ function renderCompList(){
   });
   else list.sort(function(a,b){ return (b.data_competencia||"").localeCompare(a.data_competencia||""); });
 
+  // Atualiza subtitle e KPIs com período
+  renderCompKpis();
+  document.getElementById("compSubtitle").textContent = list.length + " comprobante" + (list.length !== 1 ? "s" : "") + " no período";
+
   var el = document.getElementById("compList");
   if(list.length === 0){
-    el.innerHTML = '<div class="empty"><div class="empty-icon">🧾</div>Nenhum comprobante.</div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🧾</div>Nenhum comprobante no período.</div>';
     return;
   }
 
@@ -776,37 +803,45 @@ function renderCompList(){
     var valorTotal = Number(c.valor_total) || 0;
     var valorPago  = Number(c.valor_pago) || 0;
     var saldo = valorTotal - valorPago;
-    var valorHtml = fmtBRL(valorTotal);
-    if(c.estado === 'pago_parcial'){
-      valorHtml += '<div style="font-size:11px;color:var(--text-soft);margin-top:2px">saldo ' + fmtBRL(saldo) + '</div>';
-    }
     var estado = c.estado || 'pendente';
+
+    // Layout AZUCAPP-style vertical
+    var lines = '';
+    lines += '<div class="comp-item-line">Mês ref. <b>'+fmtMesRef(c.data_competencia)+'</b></div>';
+    if(c.data_vencimento){
+      lines += '<div class="comp-item-line">Vence <b>'+fmtDate(c.data_vencimento)+'</b></div>';
+    }
+    if(c.data_pagamento && estado === 'pago'){
+      lines += '<div class="comp-item-line">Pago em <b>'+fmtDate(c.data_pagamento)+'</b></div>';
+    }
+    lines += '<div class="comp-item-line valor">'+fmtBRL(valorTotal)+'</div>';
+    if(estado === 'pago_parcial'){
+      lines += '<div class="comp-item-line saldo">Saldo: '+fmtBRL(saldo)+'</div>';
+    }
+
     var actionsHtml = '';
     if(canEdit && estado !== 'anulado'){
       actionsHtml = '<div class="comp-item-actions">';
       if(estado !== 'pago'){
-        actionsHtml += '<button class="primary" data-pag="'+c.id+'">💵 Registrar pagamento</button>';
+        actionsHtml += '<button class="primary" data-pag="'+c.id+'">💵 Pagamento</button>';
       }
-      actionsHtml += '<button data-edit="'+c.id+'">✎ Editar</button>';
       if(c.anexo_url){
-        actionsHtml += '<button data-anexo="'+c.anexo_url+'">📎 Anexo</button>';
+        actionsHtml += '<button data-anexo="'+c.anexo_url+'" title="Ver anexo">📎</button>';
       }
+      actionsHtml += '<button data-edit="'+c.id+'" title="Editar">✎</button>';
       actionsHtml += '</div>';
     } else if(c.anexo_url){
       actionsHtml = '<div class="comp-item-actions"><button data-anexo="'+c.anexo_url+'">📎 Ver anexo</button></div>';
     }
 
     return '<div class="comp-item estado-'+estado+'">' +
-             '<div class="comp-item-head">' +
-               '<div class="comp-item-desc">'+escapeHtml(c.descricao||"—")+'</div>' +
-               '<div class="comp-item-valor">'+valorHtml+'</div>' +
-             '</div>' +
-             '<div class="comp-item-meta">' +
-               '<div class="comp-item-forne">'+escapeHtml(forn)+'</div>' +
-               '<div>comp. '+fmtDate(c.data_competencia)+'</div>' +
-             '</div>' +
-             '<div class="comp-item-chips">' +
+             '<div class="comp-estado-topright">' +
                '<span class="chip-estado '+estado+'">'+(ESTADO_LABEL[estado]||estado)+'</span>' +
+             '</div>' +
+             '<div class="comp-item-title">'+escapeHtml(forn)+'</div>' +
+             '<div class="comp-item-sub">'+escapeHtml(c.descricao||"—")+'</div>' +
+             '<div class="comp-item-lines">'+lines+'</div>' +
+             '<div class="comp-item-chips">' +
                '<span class="chip-centro">'+(CENTRO_LABEL[c.centro_custo]||c.centro_custo)+'</span>' +
                '<span class="chip-categoria">'+escapeHtml(cat)+'</span>' +
              '</div>' +
@@ -824,12 +859,44 @@ function renderCompList(){
   el.querySelectorAll("[data-anexo]").forEach(function(b){
     b.addEventListener("click", function(e){ e.stopPropagation(); window.open(b.dataset.anexo, "_blank"); });
   });
-  // Click en item (sin botones) abre edit
   el.querySelectorAll(".comp-item").forEach(function(item, i){
     item.addEventListener("click", function(){
       if(canEdit) openCompModal(list[i].id);
     });
   });
+}
+
+// ── Período presets ──
+function aplicarPeriodoPreset(preset){
+  var hoje = new Date();
+  var y = hoje.getFullYear();
+  var m = hoje.getMonth();
+  var iniEl = document.getElementById("compDataIni");
+  var fimEl = document.getElementById("compDataFim");
+  function iso(d){ return d.toISOString().slice(0,10); }
+  if(preset === "mes_atual"){
+    iniEl.value = iso(new Date(y, m, 1));
+    fimEl.value = iso(new Date(y, m + 1, 0));
+  } else if(preset === "mes_anterior"){
+    iniEl.value = iso(new Date(y, m - 1, 1));
+    fimEl.value = iso(new Date(y, m, 0));
+  } else if(preset === "ano_atual"){
+    iniEl.value = iso(new Date(y, 0, 1));
+    fimEl.value = iso(new Date(y, 11, 31));
+  } else {
+    iniEl.value = "";
+    fimEl.value = "";
+  }
+  document.querySelectorAll(".chip-btn[data-periodo]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.periodo === preset);
+  });
+  renderCompList();
+}
+
+function fmtMesRef(iso){
+  if(!iso) return "—";
+  var d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString('pt-BR', { month:'short', year:'numeric' });
 }
 
 function populateCategoriaSelects(){
@@ -1084,7 +1151,201 @@ async function goToComprobantes(){
   if(_allCategorias.length === 0)  await loadCategorias();
   populateFornecedorSelect();
   populateCategoriaSelects();
+  // Default: mês atual
+  if(!document.getElementById("compDataIni").value){
+    aplicarPeriodoPreset("mes_atual");
+  }
   await loadComprobantes();
+}
+
+// ── Export Excel de comprobantes (respeita filtros atuais) ──
+function exportCompsExcel(){
+  if(typeof XLSX === 'undefined'){ showToast("XLSX não carregou"); return; }
+  var list = compsFiltrados();
+  if(list.length === 0){ showToast("Sem dados para exportar"); return; }
+
+  var rows = list.map(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "—";
+    var cat  = c.categorias_dre ? c.categorias_dre.nome : "Sem categoria";
+    return {
+      "Mês ref.":       c.data_competencia || "",
+      "Vencimento":     c.data_vencimento || "",
+      "Pagamento":      c.data_pagamento || "",
+      "Fornecedor":     forn,
+      "Descrição":      c.descricao || "",
+      "Categoria":      cat,
+      "Centro de custo": CENTRO_LABEL[c.centro_custo] || c.centro_custo || "",
+      "Valor total":    Number(c.valor_total) || 0,
+      "Valor pago":     Number(c.valor_pago) || 0,
+      "Saldo":          Number(c.valor_total||0) - Number(c.valor_pago||0),
+      "Estado":         ESTADO_LABEL[c.estado] || c.estado || "",
+      "Meio pagamento": MEIO_LABEL[c.meio_pagamento] || c.meio_pagamento || "",
+      "Observações":    c.observacoes || ""
+    };
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(rows);
+  // Larguras
+  ws['!cols'] = [
+    {wch:12},{wch:12},{wch:12},{wch:28},{wch:36},{wch:28},{wch:16},
+    {wch:12},{wch:12},{wch:12},{wch:12},{wch:14},{wch:30}
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, "Comprobantes");
+
+  var hoje = new Date().toISOString().slice(0,10);
+  var per = getFilterPeriodo();
+  var tag = per.ini && per.fim ? (per.ini + "_a_" + per.fim) : hoje;
+  XLSX.writeFile(wb, "NORDAPP_Comprobantes_" + tag + ".xlsx");
+  showToast("Excel baixado ✓");
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO CATEGORIAS (Admin)
+// ═════════════════════════════════════════════════════════════════════
+var _editingCatId = null;
+var OUTROS_CAT_ID = null; // cache
+
+function canEditCats(){
+  return currentRole === 'master' || currentRole === 'administracao';
+}
+
+async function loadCategoriasAll(){
+  // Reusa loadCategorias para cache; faz count por categoria
+  await loadCategorias();
+  // Identifica "Outros"
+  var outros = _allCategorias.find(function(c){ return (c.nome || "").toLowerCase() === "outros"; });
+  OUTROS_CAT_ID = outros ? outros.id : null;
+  // Count comps por categoria
+  var countMap = {};
+  _allComps.forEach(function(c){
+    var k = c.categoria_dre_id;
+    if(!k) return;
+    countMap[k] = (countMap[k] || 0) + 1;
+  });
+  renderCategoriasList(countMap);
+}
+
+function renderCategoriasList(countMap){
+  countMap = countMap || {};
+  var el = document.getElementById("catList");
+  if(_allCategorias.length === 0){
+    el.innerHTML = '<div class="empty">Sem categorias.</div>';
+    return;
+  }
+  // Agrupa por grupo
+  var grupos = {};
+  _allCategorias.forEach(function(c){
+    var g = c.grupo || "outros";
+    if(!grupos[g]) grupos[g] = [];
+    grupos[g].push(c);
+  });
+  var ordem = ["receita","custo_operacional","despesa_admin","despesa_financeira","tributos","nao_operacional"];
+  var html = "";
+  ordem.forEach(function(g){
+    if(!grupos[g]) return;
+    html += '<div class="cat-group-header">'+(GRUPO_LABEL[g]||g)+'</div>';
+    grupos[g].forEach(function(c){
+      var cnt = countMap[c.id] || 0;
+      html += '<div class="cat-item" data-id="'+c.id+'">' +
+                '<div class="cat-item-nome">'+escapeHtml(c.nome)+'</div>' +
+                '<div class="cat-item-count">'+cnt+' comp.</div>' +
+              '</div>';
+    });
+  });
+  el.innerHTML = html;
+  el.querySelectorAll(".cat-item").forEach(function(it){
+    it.addEventListener("click", function(){ openCatModal(it.dataset.id); });
+  });
+  document.getElementById("catSubtitle").textContent = _allCategorias.length + " categorias ativas";
+}
+
+function openCatModal(id){
+  _editingCatId = id ? Number(id) : null;
+  var cat = null;
+  if(id){ cat = _allCategorias.find(function(c){ return String(c.id) === String(id); }); }
+  document.getElementById("catModalTitle").textContent = cat ? "Editar categoria" : "Nova categoria";
+  document.getElementById("catNome").value  = cat ? (cat.nome || "") : "";
+  document.getElementById("catGrupo").value = cat ? (cat.grupo || "custo_operacional") : "custo_operacional";
+  var btnDel = document.getElementById("btnDeleteCat");
+  // Não deixa apagar "Outros" nem se não é master/admin
+  var isOutros = cat && (cat.nome || "").toLowerCase() === "outros";
+  btnDel.style.display = (cat && canEditCats() && !isOutros) ? "block" : "none";
+  document.getElementById("modalCat").classList.add("open");
+}
+function closeCatModal(){
+  document.getElementById("modalCat").classList.remove("open");
+  _editingCatId = null;
+}
+
+async function saveCategoria(){
+  if(!canEditCats()){ showToast("Sem permissão"); return; }
+  var nome = document.getElementById("catNome").value.trim();
+  var grupo = document.getElementById("catGrupo").value;
+  if(!nome){ showToast("Nome obrigatório"); return; }
+  var payload = { nome: nome, grupo: grupo };
+  var r;
+  if(_editingCatId){
+    payload.updated_at = new Date().toISOString();
+    r = await api("categorias_dre?id=eq." + _editingCatId, "PATCH", payload);
+  } else {
+    payload.ordem = 1000;
+    payload.created_by = currentUser.username || "system";
+    r = await api("categorias_dre", "POST", payload);
+  }
+  if(!r){ showToast("Erro (nome duplicado?)"); return; }
+  showToast(_editingCatId ? "Atualizada ✓" : "Categoria criada ✓");
+  var created = Array.isArray(r) ? r[0] : r;
+  // Se foi criada do modal de comprobante, pré-selecionar
+  if(!_editingCatId && created && created.id && document.getElementById("cfCategoria").offsetParent !== null){
+    await loadCategorias();
+    populateCategoriaSelects();
+    document.getElementById("cfCategoria").value = created.id;
+  } else {
+    await loadCategorias();
+    populateCategoriaSelects();
+    // Se estamos na view de categorias, re-render
+    if(document.getElementById("viewCategorias").classList.contains("active")){
+      await loadCategoriasAll();
+    }
+  }
+  closeCatModal();
+}
+
+async function deleteCategoria(){
+  if(!canEditCats()){ showToast("Sem permissão"); return; }
+  if(!_editingCatId) return;
+  if(!OUTROS_CAT_ID){
+    // Localiza "Outros"
+    var outros = _allCategorias.find(function(c){ return (c.nome || "").toLowerCase() === "outros"; });
+    if(outros) OUTROS_CAT_ID = outros.id;
+  }
+  if(!OUTROS_CAT_ID){ showToast("Categoria 'Outros' não existe · crie uma primeiro"); return; }
+  if(_editingCatId === OUTROS_CAT_ID){ showToast("Não é possível apagar 'Outros'"); return; }
+  if(!confirm("Apagar esta categoria? Os comprobantes passarão para 'Outros'.")) return;
+
+  // 1) Reatribuir comprobantes
+  var r1 = await api("comprobantes?categoria_dre_id=eq." + _editingCatId, "PATCH", { categoria_dre_id: OUTROS_CAT_ID });
+  if(r1 === null){ showToast("Erro ao reatribuir comprobantes"); return; }
+  // 2) Apagar categoria (soft delete via ativo=false seria melhor, mas user pediu apagar)
+  var r2 = await api("categorias_dre?id=eq." + _editingCatId, "DELETE");
+  if(!r2){
+    // Fallback: marcar como inativa
+    await api("categorias_dre?id=eq." + _editingCatId, "PATCH", { ativo: false });
+  }
+  showToast("Categoria apagada ✓");
+  closeCatModal();
+  await loadCategorias();
+  populateCategoriaSelects();
+  await loadCategoriasAll();
+  // Recarrega comps para refletir
+  if(_allComps.length) await loadComprobantes();
+}
+
+async function goToCategorias(){
+  showView("viewCategorias");
+  if(_allComps.length === 0) await loadComprobantes();
+  await loadCategoriasAll();
 }
 
 function init(){
@@ -1145,11 +1406,25 @@ function init(){
   if(btnSaveC) btnSaveC.addEventListener("click", saveComp);
   var btnAnularC = document.getElementById("btnAnularComp");
   if(btnAnularC) btnAnularC.addEventListener("click", anularComp);
-  ["compSearch","compEstadoFilter","compCentroFilter","compCategoriaFilter","compOrderBy"].forEach(function(id){
+  ["compSearch","compEstadoFilter","compCentroFilter","compCategoriaFilter","compOrderBy","compDataIni","compDataFim"].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.addEventListener("input", renderCompList);
     if(el) el.addEventListener("change", renderCompList);
   });
+  // Clear preset chip ao mudar manualmente as datas
+  ["compDataIni","compDataFim"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", function(){
+      document.querySelectorAll(".chip-btn[data-periodo]").forEach(function(b){ b.classList.remove("active"); });
+    });
+  });
+  // Período presets
+  document.querySelectorAll(".chip-btn[data-periodo]").forEach(function(b){
+    b.addEventListener("click", function(){ aplicarPeriodoPreset(b.dataset.periodo); });
+  });
+  // Export Excel
+  var btnExpC = document.getElementById("btnExportComps");
+  if(btnExpC) btnExpC.addEventListener("click", exportCompsExcel);
   var mc = document.getElementById("modalComp");
   if(mc) mc.addEventListener("click", function(e){ if(e.target === mc) closeCompModal(); });
 
@@ -1162,8 +1437,17 @@ function init(){
   if(btnCloseCat) btnCloseCat.addEventListener("click", closeCatModal);
   var btnSaveCat = document.getElementById("btnSaveCat");
   if(btnSaveCat) btnSaveCat.addEventListener("click", saveCategoria);
+  var btnDelCat = document.getElementById("btnDeleteCat");
+  if(btnDelCat) btnDelCat.addEventListener("click", deleteCategoria);
   var mcat = document.getElementById("modalCat");
   if(mcat) mcat.addEventListener("click", function(e){ if(e.target === mcat) closeCatModal(); });
+
+  // Nova categoria desde a view Categorias
+  var btnNovaC = document.getElementById("btnNovaCat");
+  if(btnNovaC) btnNovaC.addEventListener("click", function(){
+    if(!canEditCats()){ showToast("Sem permissão"); return; }
+    openCatModal(null);
+  });
 
   // Modal pagamento
   var btnClosePag = document.getElementById("btnClosePag");
