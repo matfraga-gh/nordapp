@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   NORDAPP · styles.css v0.1.3
+   NORDAPP · styles.css v0.2.0
    Paleta ocean + sand · Cormorant Garamond + Jost
    Siguindo patrão AZUCAPP: views independentes, ações inline
    ═════════════════════════════════════════════════════════════════════ */
@@ -337,3 +337,175 @@ a { color: var(--ocean); text-decoration: none; }
   letter-spacing: 1px;
   margin-top: 20px;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   NORDAPP · Módulo FORNECEDORES
+   ════════════════════════════════════════════════════════════════════ */
+
+.filter-row {
+  display: flex; gap: 8px; margin-bottom: 10px;
+}
+.filter-input, .filter-select {
+  flex: 1;
+  background: var(--sand);
+  border: 1.5px solid var(--sand-dark);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+}
+.filter-input:focus, .filter-select:focus {
+  border-color: var(--ocean);
+}
+
+.fornecedor-list {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 8px;
+}
+.fornecedor-item {
+  background: var(--sand);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+.fornecedor-item:hover {
+  border-color: var(--sand-dark);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+.fornecedor-item-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+}
+.fornecedor-item-nome {
+  font-family: var(--font-serif);
+  font-size: 17px; font-weight: 700;
+  color: var(--ocean);
+  flex: 1;
+}
+.fornecedor-item-tipo {
+  display: inline-block;
+  font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase;
+  background: var(--ocean-light);
+  color: var(--ocean);
+  padding: 3px 9px; border-radius: 10px;
+  font-weight: 600;
+}
+.fornecedor-item-tipo.no-tipo {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+.fornecedor-item-meta {
+  font-size: 11px; color: var(--text-soft);
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.fornecedor-item-meta span { display: inline-flex; align-items: center; gap: 3px; }
+.fornecedor-dup-badge {
+  position: absolute; top: 10px; right: 10px;
+  background: var(--red-bg); color: var(--red);
+  font-size: 9px; letter-spacing: 0.5px;
+  padding: 2px 7px; border-radius: 8px;
+  font-weight: 600;
+}
+
+/* ── MODAL GENÉRICO (overlay) ─────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: none;
+  align-items: flex-start; justify-content: center;
+  padding: 20px;
+  z-index: 100;
+  overflow-y: auto;
+}
+.overlay.open { display: flex; }
+.modal {
+  background: var(--sand);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 500px;
+  padding: 20px 20px 16px;
+  color: var(--text);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  margin: auto;
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-title {
+  font-family: var(--font-serif);
+  font-size: 20px; font-weight: 700;
+  color: var(--ocean);
+}
+.btn-x {
+  background: none; border: none;
+  color: var(--text-soft);
+  font-size: 24px; cursor: pointer;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-x:hover { background: var(--sand-mid); color: var(--ocean); }
+
+.modal label {
+  display: block;
+  font-size: 10px; letter-spacing: 1px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin: 10px 0 4px;
+}
+.modal label .req { color: var(--red); }
+.modal input, .modal select, .modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--sand-dark);
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+.modal input:focus, .modal select:focus, .modal textarea:focus {
+  border-color: var(--ocean);
+}
+.modal textarea { resize: vertical; min-height: 60px; }
+
+.row-2 {
+  display: flex; gap: 10px;
+}
+.row-2 > div { flex: 1; }
+
+.modal-footer {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 18px;
+}
+.modal-footer .btn-primary, .modal-footer .btn-secondary {
+  padding: 11px 18px;
+}
+
+.fornecedor-legacy {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: var(--yellow-bg);
+  border-left: 3px solid var(--yellow);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-soft);
+}
+.fornecedor-legacy b { color: var(--text); }
+
+/* ── Loading & empty state ────────────────────────────────────────── */
+.loading, .empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+.empty-icon { font-size: 36px; opacity: 0.4; margin-bottom: 10px; }

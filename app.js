@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.1.3 · greeting + avatar + datetime · 2026-11-23");
+console.log("NORDAPP v0.2.0 · greeting + avatar + datetime · 2026-11-23");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -34,6 +34,40 @@ var ROLE_LABELS = {
   "reservas": "📅 Reservas",
   "auditor": "🔍 Auditor"
 };
+
+// ── TIPOS DE FORNECEDOR ───────────────────────────────────────────────
+var FORNECEDOR_TIPOS = [
+  { id: 'empregado',   label: 'Empregado',               emoji: '👤' },
+  { id: 'prestador',   label: 'Prestador eventual',      emoji: '🔧' },
+  { id: 'utilidade',   label: 'Utilidade (luz/gás/net)', emoji: '💡' },
+  { id: 'condominio',  label: 'Condomínio',              emoji: '🏢' },
+  { id: 'profissional',label: 'Honorário profissional',  emoji: '💼' },
+  { id: 'produto',     label: 'Produto / regular',       emoji: '📦' },
+  { id: 'imposto',     label: 'Imposto / taxa',          emoji: '🧾' },
+  { id: 'canal_venda', label: 'Canal de venda',          emoji: '🌐' },
+  { id: 'comissario',  label: 'Comissário',              emoji: '🤝' },
+  { id: 'outros',      label: 'Outros',                  emoji: '•'  }
+];
+function tipoLabel(tipoId){
+  var t = FORNECEDOR_TIPOS.find(function(x){return x.id === tipoId;});
+  return t ? (t.emoji + ' ' + t.label) : null;
+}
+// Sugere tipo baseado na categoria legacy do app antigo
+function sugerirTipoDeCategoria(cat){
+  if(!cat) return 'outros';
+  var c = cat.toLowerCase();
+  if(c.indexOf('salar') >= 0 || c.indexOf('fgts') >= 0 || c.indexOf('inss') >= 0) return 'empregado';
+  if(c.indexOf('conta') >= 0 || c.indexOf('honorar') >= 0 || c.indexOf('advo') >= 0) return 'profissional';
+  if(c.indexOf('energia') >= 0 || c.indexOf('gas') >= 0 || c.indexOf('agua') >= 0 || c.indexOf('internet') >= 0 || c.indexOf('telefo') >= 0) return 'utilidade';
+  if(c.indexOf('consorcio') >= 0 || c.indexOf('condomin') >= 0) return 'condominio';
+  if(c.indexOf('produto') >= 0 || c.indexOf('material') >= 0 || c.indexOf('suprim') >= 0 || c.indexOf('bens') >= 0) return 'produto';
+  if(c.indexOf('simples') >= 0 || c.indexOf('impost') >= 0 || c.indexOf('iptu') >= 0 || c.indexOf('receita federal') >= 0 || c.indexOf('parcelamento') >= 0) return 'imposto';
+  if(c.indexOf('booking') >= 0 || c.indexOf('airbnb') >= 0) return 'canal_venda';
+  if(c.indexOf('comiss') >= 0 || c.indexOf('agente') >= 0) return 'comissario';
+  if(c.indexOf('manuten') >= 0 || c.indexOf('reparo') >= 0 || c.indexOf('lavander') >= 0 || c.indexOf('cafe') >= 0) return 'prestador';
+  return 'outros';
+}
+
 
 // ── ACCESS por área ───────────────────────────────────────────────────
 function getAccess(role){
@@ -177,7 +211,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.1.3 · build 2026-11-23";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.2.0 · build 2026-11-23";
 }
 
 function renderPainelGrid(){
@@ -289,7 +323,9 @@ function goToHub(hubId){
 }
 
 function goToModule(moduleId, parentHubId, title){
-  // Fase 1: todos os módulos mostram placeholder "em construção"
+  // Módulos já implementados
+  if(moduleId === "fornecedores"){ goToFornecedores(); return; }
+  // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
   showView("viewEmConstrucao");
@@ -300,6 +336,232 @@ function handleNav(target){
   if(target === "painel") goToPainel();
   else if(HUB_CONFIG[target]) goToHub(target);
   else goToPainel();
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO FORNECEDORES
+// ═════════════════════════════════════════════════════════════════════
+var _allFornecedores = [];
+var _editingFornecedorId = null;
+
+function canEditFornecedores(){
+  return currentRole === 'master' || currentRole === 'administracao';
+}
+
+async function loadFornecedores(){
+  var el = document.getElementById("forneList");
+  el.innerHTML = '<div class="loading">Carregando...</div>';
+  var data = await api("fornecedores?select=*&order=nome.asc");
+  if(!data){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">⚠</div>Erro ao carregar. Verifique conexão.</div>';
+    return;
+  }
+  _allFornecedores = data;
+  renderFornecedoresList();
+  document.getElementById("forneSubtitle").textContent = data.length + " fornecedor" + (data.length !== 1 ? "es" : "") + " cadastrado" + (data.length !== 1 ? "s" : "");
+}
+
+function renderFornecedoresList(){
+  var search = (document.getElementById("forneSearch").value || "").toLowerCase().trim();
+  var tipoFilter = document.getElementById("forneTipoFilter").value;
+  var orderBy = document.getElementById("forneOrderBy").value;
+
+  var list = _allFornecedores.slice();
+
+  // Filtros
+  if(search){
+    list = list.filter(function(f){
+      return (f.nome || "").toLowerCase().indexOf(search) >= 0
+          || (f.cnpj_cpf || "").toLowerCase().indexOf(search) >= 0
+          || (f.email || "").toLowerCase().indexOf(search) >= 0
+          || (f.categoria || "").toLowerCase().indexOf(search) >= 0;
+    });
+  }
+  if(tipoFilter){
+    list = list.filter(function(f){ return (f.tipo || sugerirTipoDeCategoria(f.categoria)) === tipoFilter; });
+  }
+
+  // Detectar duplicados por nome (case insensitive, trim)
+  var nomeCount = {};
+  _allFornecedores.forEach(function(f){
+    var key = (f.nome || "").toLowerCase().trim();
+    nomeCount[key] = (nomeCount[key] || 0) + 1;
+  });
+
+  // Ordenar
+  if(orderBy === 'tipo'){
+    list.sort(function(a,b){
+      var ta = (a.tipo || sugerirTipoDeCategoria(a.categoria));
+      var tb = (b.tipo || sugerirTipoDeCategoria(b.categoria));
+      if(ta !== tb) return ta.localeCompare(tb);
+      return (a.nome || "").localeCompare(b.nome || "");
+    });
+  } else if(orderBy === 'recentes'){
+    list.sort(function(a,b){ return (b.id || 0) - (a.id || 0); });
+  } else {
+    list.sort(function(a,b){ return (a.nome || "").localeCompare(b.nome || ""); });
+  }
+
+  var el = document.getElementById("forneList");
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>Nenhum fornecedor encontrado</div>';
+    return;
+  }
+
+  var html = list.map(function(f){
+    var tipoAtual = f.tipo || sugerirTipoDeCategoria(f.categoria);
+    var tipoLbl = tipoLabel(tipoAtual);
+    var tipoClass = f.tipo ? "" : " no-tipo";
+    var tipoSuffix = f.tipo ? "" : " ·sug";
+    var meta = [];
+    if(f.email) meta.push('<span>✉ ' + escapeHtml(f.email) + '</span>');
+    if(f.telefone) meta.push('<span>☎ ' + escapeHtml(f.telefone) + '</span>');
+    if(f.cnpj_cpf) meta.push('<span>🧾 ' + escapeHtml(f.cnpj_cpf) + '</span>');
+    if(!f.tipo && f.categoria) meta.push('<span style="opacity:0.7">cat. legacy: ' + escapeHtml(f.categoria) + '</span>');
+
+    var dupKey = (f.nome || "").toLowerCase().trim();
+    var dupBadge = nomeCount[dupKey] > 1
+      ? '<div class="fornecedor-dup-badge">⚠ ' + nomeCount[dupKey] + ' registros</div>'
+      : '';
+
+    return '<div class="fornecedor-item" data-id="' + f.id + '">' +
+             dupBadge +
+             '<div class="fornecedor-item-head">' +
+               '<div class="fornecedor-item-nome">' + escapeHtml(f.nome || "(sem nome)") + '</div>' +
+               (tipoLbl ? '<div class="fornecedor-item-tipo' + tipoClass + '">' + tipoLbl + tipoSuffix + '</div>' : '') +
+             '</div>' +
+             (meta.length ? '<div class="fornecedor-item-meta">' + meta.join("") + '</div>' : '') +
+           '</div>';
+  }).join("");
+
+  el.innerHTML = html;
+  el.querySelectorAll('.fornecedor-item').forEach(function(item){
+    item.addEventListener('click', function(){
+      openFornecedorModal(parseInt(item.dataset.id, 10));
+    });
+  });
+}
+
+function populateTipoSelects(){
+  // Fill both filter and modal selects
+  var opts = FORNECEDOR_TIPOS.map(function(t){ return '<option value="' + t.id + '">' + t.emoji + ' ' + t.label + '</option>'; }).join("");
+  document.getElementById("forneTipoFilter").innerHTML = '<option value="">Todos os tipos</option>' + opts;
+  document.getElementById("ffTipo").innerHTML = '<option value="">Selecionar...</option>' + opts;
+}
+
+function openFornecedorModal(id){
+  var f = id ? _allFornecedores.find(function(x){return x.id === id;}) : null;
+  _editingFornecedorId = id || null;
+  document.getElementById("forneModalTitle").textContent = f ? ('✎ ' + (f.nome || 'Fornecedor')) : 'Novo fornecedor';
+
+  var tipoSugerido = f ? (f.tipo || sugerirTipoDeCategoria(f.categoria)) : '';
+  document.getElementById("ffNome").value = f ? (f.nome || "") : "";
+  document.getElementById("ffTipo").value = tipoSugerido;
+  document.getElementById("ffCnpj").value = f ? (f.cnpj_cpf || "") : "";
+  document.getElementById("ffEmail").value = f ? (f.email || "") : "";
+  document.getElementById("ffTelefone").value = f ? (f.telefone || "") : "";
+  document.getElementById("ffBanco").value = f ? (f.banco_pagto || "") : "";
+  document.getElementById("ffPix").value = f ? (f.chave_pix || "") : "";
+  document.getElementById("ffComentarios").value = f ? (f.comentarios || "") : "";
+
+  // Mostrar info legacy si existe
+  var legacyEl = document.getElementById("forneLegacyInfo");
+  if(f && f.categoria){
+    legacyEl.innerHTML = '<b>Categoria legacy do app antigo:</b> ' + escapeHtml(f.categoria) +
+                        (f.tipo ? '' : '<br><i>Sugerido: ' + tipoLabel(tipoSugerido) + '</i>');
+    legacyEl.style.display = 'block';
+  } else {
+    legacyEl.style.display = 'none';
+  }
+
+  // Botões
+  var delBtn = document.getElementById("btnDeleteFornecedor");
+  delBtn.style.display = (f && canEditFornecedores()) ? 'block' : 'none';
+  var saveBtn = document.getElementById("btnSaveFornecedor");
+  saveBtn.style.display = canEditFornecedores() ? 'block' : 'none';
+  // Deshabilitar inputs se somente lectura
+  var canEdit = canEditFornecedores();
+  ['ffNome','ffTipo','ffCnpj','ffEmail','ffTelefone','ffBanco','ffPix','ffComentarios'].forEach(function(fid){
+    document.getElementById(fid).disabled = !canEdit;
+  });
+
+  document.getElementById("modalFornecedor").classList.add("open");
+}
+
+function closeFornecedorModal(){
+  document.getElementById("modalFornecedor").classList.remove("open");
+  _editingFornecedorId = null;
+}
+
+async function saveFornecedor(){
+  var nome = document.getElementById("ffNome").value.trim();
+  var tipo = document.getElementById("ffTipo").value;
+  if(!nome){ showToast("Nome é obrigatório"); return; }
+  if(!tipo){ showToast("Tipo é obrigatório"); return; }
+
+  var body = {
+    nome: nome,
+    tipo: tipo,
+    cnpj_cpf: document.getElementById("ffCnpj").value.trim() || null,
+    email: document.getElementById("ffEmail").value.trim() || null,
+    telefone: document.getElementById("ffTelefone").value.trim() || null,
+    banco_pagto: document.getElementById("ffBanco").value.trim() || null,
+    chave_pix: document.getElementById("ffPix").value.trim() || null,
+    comentarios: document.getElementById("ffComentarios").value.trim() || null,
+    ativo: true
+  };
+
+  var saveBtn = document.getElementById("btnSaveFornecedor");
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Salvando...";
+
+  var res;
+  if(_editingFornecedorId){
+    res = await api("fornecedores?id=eq." + _editingFornecedorId, "PATCH", body);
+  } else {
+    // ao criar novo, agregar categoria compatible con app vieja
+    body.categoria = (tipo.charAt(0).toUpperCase() + tipo.slice(1));
+    res = await api("fornecedores", "POST", body);
+  }
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = "Salvar";
+
+  if(!res){
+    showToast("Erro: " + (window._lastApiError || "falha ao salvar"));
+    return;
+  }
+  closeFornecedorModal();
+  showToast(_editingFornecedorId ? "Fornecedor atualizado" : "Fornecedor criado");
+  await loadFornecedores();
+}
+
+async function deleteFornecedor(){
+  if(!_editingFornecedorId) return;
+  var f = _allFornecedores.find(function(x){return x.id === _editingFornecedorId;});
+  if(!f) return;
+  if(!confirm('Apagar fornecedor "' + f.nome + '"?\n\nEsta ação não pode ser desfeita.')) return;
+  var res = await api("fornecedores?id=eq." + _editingFornecedorId, "DELETE");
+  if(res === null){
+    showToast("Erro: " + (window._lastApiError || "falha ao apagar"));
+    return;
+  }
+  closeFornecedorModal();
+  showToast("Fornecedor removido");
+  await loadFornecedores();
+}
+
+function goToFornecedores(){
+  populateTipoSelects();
+  loadFornecedores();
+  showView("viewFornecedores");
+}
+
+function escapeHtml(s){
+  if(s == null) return "";
+  return String(s).replace(/[&<>"']/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
@@ -320,6 +582,30 @@ function init(){
     var parent = this.dataset.parent || "painel";
     if(parent === "painel") goToPainel();
     else goToHub(parent);
+  });
+
+  // ─── Módulo Fornecedores ───
+  var btnNovoF = document.getElementById("btnNovoFornecedor");
+  if(btnNovoF) btnNovoF.addEventListener("click", function(){
+    if(!canEditFornecedores()){ showToast("Você não tem permissão"); return; }
+    openFornecedorModal(null);
+  });
+  var btnCloseF = document.getElementById("btnCloseFornecedor");
+  if(btnCloseF) btnCloseF.addEventListener("click", closeFornecedorModal);
+  var btnSaveF = document.getElementById("btnSaveFornecedor");
+  if(btnSaveF) btnSaveF.addEventListener("click", saveFornecedor);
+  var btnDelF = document.getElementById("btnDeleteFornecedor");
+  if(btnDelF) btnDelF.addEventListener("click", deleteFornecedor);
+  var forneSearch = document.getElementById("forneSearch");
+  if(forneSearch) forneSearch.addEventListener("input", renderFornecedoresList);
+  var forneTipoF = document.getElementById("forneTipoFilter");
+  if(forneTipoF) forneTipoF.addEventListener("change", renderFornecedoresList);
+  var forneOrder = document.getElementById("forneOrderBy");
+  if(forneOrder) forneOrder.addEventListener("change", renderFornecedoresList);
+  // Clickar fuera do modal cierra
+  var mf = document.getElementById("modalFornecedor");
+  if(mf) mf.addEventListener("click", function(e){
+    if(e.target === mf) closeFornecedorModal();
   });
 
   // Session restore
