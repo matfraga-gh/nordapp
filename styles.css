@@ -409,13 +409,17 @@ a { color: var(--ocean); text-decoration: none; }
 }
 .fornecedor-item-tipo {
   display: inline-block;
-  font-size: 10px; letter-spacing: 0.8px;
+  font-size: 10px; letter-spacing: 0.5px;
   text-transform: uppercase;
   background: var(--ocean-light);
   color: var(--ocean);
   padding: 4px 10px; border-radius: 10px;
   font-weight: 700;
   white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 .fornecedor-item-tipo.no-tipo {
   background: var(--yellow-bg);
@@ -1053,4 +1057,10 @@ a { color: var(--ocean); text-decoration: none; }
   font-size: 17px;
   letter-spacing: -0.3px;
   text-align: right;
+}
+
+/* Evita overflow dos selects em mobile */
+.filter-select {
+  min-width: 0;
+  text-overflow: ellipsis;
 }

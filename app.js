@@ -38,18 +38,18 @@ var ROLE_LABELS = {
 // ── TIPOS DE FORNECEDOR ───────────────────────────────────────────────
 // 12 tipos de fornecedor seguindo padrão contábil brasileiro (NBC/CPC)
 var FORNECEDOR_TIPOS = [
-  { id: 'empregado',          label: 'Pessoal / Funcionário',              emoji: '👤' },
-  { id: 'prestador_pj',       label: 'Prestador de serviço PJ',            emoji: '🔧' },
-  { id: 'bens_consumo',       label: 'Fornecedor de bens / produtos',      emoji: '📦' },
-  { id: 'utilidade',          label: 'Concessionária / Utilidade pública', emoji: '💡' },
-  { id: 'financeira',         label: 'Instituição financeira',             emoji: '🏦' },
-  { id: 'governo',            label: 'Governo / Fisco',                    emoji: '🏛' },
-  { id: 'canal_venda',        label: 'Canal de distribuição (OTA)',        emoji: '🌐' },
-  { id: 'agente_comercial',   label: 'Agente comercial / Parceiro',        emoji: '🤝' },
-  { id: 'condominio',         label: 'Condomínio / Associação',            emoji: '🏢' },
-  { id: 'parte_relacionada',  label: 'Parte relacionada (sócios)',         emoji: '👑' },
-  { id: 'credor_financeiro',  label: 'Credor financeiro (empréstimo)',     emoji: '💳' },
-  { id: 'outros',             label: 'Outros',                             emoji: '•'  }
+  { id: 'empregado',          label: 'Funcionário',       emoji: '👤' },
+  { id: 'prestador_pj',       label: 'Prestador PJ',      emoji: '🔧' },
+  { id: 'bens_consumo',       label: 'Bens / Produtos',   emoji: '📦' },
+  { id: 'utilidade',          label: 'Concessionária',    emoji: '💡' },
+  { id: 'financeira',         label: 'Financeira',        emoji: '🏦' },
+  { id: 'governo',            label: 'Governo',           emoji: '🏛' },
+  { id: 'canal_venda',        label: 'Canal (OTA)',       emoji: '🌐' },
+  { id: 'agente_comercial',   label: 'Agente',            emoji: '🤝' },
+  { id: 'condominio',         label: 'Condomínio',        emoji: '🏢' },
+  { id: 'parte_relacionada',  label: 'Sócios',            emoji: '👑' },
+  { id: 'credor_financeiro',  label: 'Empréstimo',        emoji: '💳' },
+  { id: 'outros',             label: 'Outros',            emoji: '•'  }
 ];
 function tipoLabel(tipoId){
   var t = FORNECEDOR_TIPOS.find(function(x){return x.id === tipoId;});
@@ -907,7 +907,7 @@ function populateCategoriaSelects(){
 
   // Filtro
   var sel = document.getElementById("compCategoriaFilter");
-  sel.innerHTML = '<option value="">Todas categorias DRE</option>' + opts;
+  sel.innerHTML = '<option value="">Todas categorias</option>' + opts;
 
   // Modal form
   var selForm = document.getElementById("cfCategoria");
