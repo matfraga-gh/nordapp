@@ -1323,3 +1323,108 @@ a { color: var(--ocean); text-decoration: none; }
   color: var(--white);
   border-top: 1px solid rgba(255,255,255,0.2);
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.7.0 · Drill-down + Comparativo + Caixa
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* Hover em linhas DRE para indicar clicável */
+.dre-row { cursor: pointer; transition: background .1s; }
+.dre-row:hover { background: rgba(255,255,255,0.1); }
+.dre-sec-head { cursor: pointer; transition: filter .1s; }
+.dre-sec-head:hover { filter: brightness(1.15); }
+
+/* Comparativo: badge var % */
+.dre-var {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
+  letter-spacing: 0.3px;
+}
+.dre-var.up   { background: rgba(94, 160, 115, 0.3); color: #a8d8b5; }
+.dre-var.down { background: rgba(196, 122, 122, 0.3); color: #e8b0b0; }
+.dre-var.flat { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+
+/* Drill-down modal */
+.drill-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.drill-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 90px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sand-mid);
+  align-items: center;
+  cursor: pointer;
+}
+.drill-row:hover { background: var(--sand-mid); }
+.drill-row:last-child { border-bottom: none; }
+.drill-data { font-size: 11px; color: var(--text); opacity: 0.65; font-variant-numeric: tabular-nums; }
+.drill-desc {
+  font-size: 13px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.drill-desc .forne {
+  font-size: 11px; opacity: 0.7; display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.drill-valor {
+  font-weight: 700; color: var(--ocean);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.drill-total {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--sand-mid);
+  border-radius: var(--radius-sm);
+  margin-top: 10px;
+  font-weight: 700;
+  color: var(--ocean);
+}
+
+/* Caixa: saldo card */
+.caixa-saldo {
+  max-width: 560px;
+  margin: 0 auto 14px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, var(--sand), var(--sand-mid));
+  color: var(--ocean);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.caixa-saldo.negativo {
+  background: linear-gradient(135deg, var(--red-bg), #e8b0b0);
+  color: #5a2a2a;
+}
+.caixa-saldo-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  font-weight: 700;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+.caixa-saldo-valor {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.caixa-saldo-detail {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0,0,0,0.15);
+  font-size: 12px;
+  font-weight: 600;
+}
+.caixa-saldo-detail span { opacity: 0.85; }

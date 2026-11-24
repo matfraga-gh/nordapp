@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.6.3 · Ingresos + Outros servicos · 2026-11-24");
+console.log("NORDAPP v0.7.0 · Drill-down DRE + Comparativo + Caixa · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.3 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.7.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -350,6 +350,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "pagos"){ goToPagos(); return; }
   if(moduleId === "painel_resultados"){ goToDRE(); return; }
   if(moduleId === "ingresos"){ goToIngresos(); return; }
+  if(moduleId === "caixa"){ goToCaixa(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -1875,7 +1876,9 @@ function dreRenderSec(cfg, dados, base, subitemsMap){
                '<div class="sh-pct">'+fmtPct(total, base)+'</div>' +
              '</div>';
   Object.keys(dados).sort(function(a,b){ return dados[b] - dados[a]; }).forEach(function(k){
-    html += '<div class="dre-row">' +
+    // k pode ter sufixo (comprobante) ou (não-hosp.) — extrair nome base
+    var kBase = k.replace(/\s*\(comprobante\)$/, '').replace(/\s*\(não-hosp\.\)$/, '');
+    html += '<div class="dre-row" data-cat="'+escapeHtml(kBase)+'">' +
               '<div class="r-label">'+escapeHtml(k)+'</div>' +
               '<div class="r-valor">'+fmtMoney(dados[k])+'</div>' +
               '<div class="r-pct">'+fmtPct(dados[k], base)+'</div>' +
@@ -1893,12 +1896,27 @@ function dreRenderSec(cfg, dados, base, subitemsMap){
   return html;
 }
 
-function dreTotalRow(cls, label, valor, baseMargem, cssExtra){
+function dreTotalRow(cls, label, valor, baseMargem, cssExtra, valorAnt){
+  var varHtml = "";
+  if(valorAnt !== undefined && valorAnt !== null){
+    varHtml = ' ' + dreVarBadge(valor, valorAnt);
+  }
   return '<div class="dre-total-row '+cls+(cssExtra?' '+cssExtra:'')+'">' +
-           '<div class="t-label">'+label+'</div>' +
+           '<div class="t-label">'+label+varHtml+'</div>' +
            '<div class="t-valor">'+fmtMoney(valor)+'</div>' +
            '<div class="t-pct">'+fmtPct(valor, baseMargem)+'</div>' +
          '</div>';
+}
+
+function dreVarBadge(atual, ant){
+  if(!ant || ant === 0){
+    if(!atual) return '<span class="dre-var flat">—</span>';
+    return '<span class="dre-var up">novo</span>';
+  }
+  var pct = ((atual - ant) / Math.abs(ant)) * 100;
+  var cls = Math.abs(pct) < 0.5 ? 'flat' : (pct >= 0 ? 'up' : 'down');
+  var sign = pct > 0 ? '+' : '';
+  return '<span class="dre-var '+cls+'">'+sign+pct.toFixed(0)+'%</span>';
 }
 
 async function renderDRE(){
@@ -1995,24 +2013,50 @@ async function renderDRE(){
     html += '<div class="dre-warning">Nenhuma receita em '+dreMesLabel(y,m)+'. Confira se há reservas com check-in neste mês (status ≠ cancelada).</div>';
   }
 
+  // Comparativo com mês anterior (opcional)
+  var comparar = document.getElementById("dreComparar").checked;
+  var totAnt = null;
+  if(comparar){
+    var ym = _dreMes.y, mm = _dreMes.m - 1;
+    if(mm < 0){ mm = 11; ym--; }
+    var gruposAnt = agruparDespesasMes(ym, mm, incluirConsorcio);
+    function sgAnt(g){ var s = 0; if(gruposAnt[g]) Object.keys(gruposAnt[g]).forEach(function(k){ s += gruposAnt[g][k]; }); return s; }
+    var custoOpAnt = sgAnt('custo_operacional');
+    var despAdmAnt = sgAnt('despesa_admin');
+    var tributosAnt = sgAnt('tributos');
+    var despFinAnt = sgAnt('despesa_financeira');
+    var naoOpAnt = sgAnt('nao_operacional');
+    // Receitas do mês anterior
+    var receitaAnt = 0;
+    if(reservasResult.ok){
+      var rsvAnt = filtrarReservasNoMes(reservasResult.rows, ym, mm);
+      rsvAnt.forEach(function(r){ receitaAnt += reservaReceitaPrincipal(r) + reservaReceitaAdicional(r) - reservaDevolucao(r); });
+    }
+    receitaAnt += sgAnt('receita');
+    var opAnt = receitaAnt - custoOpAnt;
+    var ebitdaAnt = opAnt - despAdmAnt - tributosAnt;
+    var liqAnt = ebitdaAnt - despFinAnt - naoOpAnt;
+    totAnt = { receita: receitaAnt, op: opAnt, ebitda: ebitdaAnt, liq: liqAnt };
+  }
+
   // CUSTO OP
   html += dreRenderSec({ cls:'sec-custo-op', titulo:'Custo operacional' }, grupos.custo_operacional, base);
   // Resultado operacional bruto
-  html += dreTotalRow('tot-bruto', 'Resultado operacional bruto', resultadoOp, base);
+  html += dreTotalRow('tot-bruto', 'Resultado operacional bruto', resultadoOp, base, '', totAnt ? totAnt.op : undefined);
 
   // ADM
   html += dreRenderSec({ cls:'sec-despesa-admin', titulo:'Despesas administrativas' }, grupos.despesa_admin, base);
   // TRIBUTOS
   html += dreRenderSec({ cls:'sec-tributos', titulo:'Tributos' }, grupos.tributos, base);
   // EBITDA
-  html += dreTotalRow('tot-ebitda', 'EBITDA', ebitda, base);
+  html += dreTotalRow('tot-ebitda', 'EBITDA', ebitda, base, '', totAnt ? totAnt.ebitda : undefined);
 
   // FINANCEIRAS
   html += dreRenderSec({ cls:'sec-despesa-fin', titulo:'Despesas financeiras' }, grupos.despesa_financeira, base);
   // NÃO OP
   html += dreRenderSec({ cls:'sec-nao-op', titulo:'Não operacional' }, grupos.nao_operacional, base);
   // LÍQUIDO
-  html += dreTotalRow('tot-liquido', 'Resultado líquido', resultadoLiq, base, resultadoLiq < 0 ? 'negativo' : '');
+  html += dreTotalRow('tot-liquido', 'Resultado líquido', resultadoLiq, base, resultadoLiq < 0 ? 'negativo' : '', totAnt ? totAnt.liq : undefined);
 
   html += '</div>'; // .dre-table
 
@@ -2024,6 +2068,65 @@ async function renderDRE(){
     return;
   }
   el.innerHTML = html;
+
+  // Drill-down: click em linha de categoria abre modal com comprobantes
+  el.querySelectorAll(".dre-row[data-cat]").forEach(function(row){
+    row.addEventListener("click", function(){
+      abrirDrilldownDRE(row.dataset.cat);
+    });
+  });
+}
+
+// ── Drill-down modal ──
+function abrirDrilldownDRE(catNome){
+  var ini = dreFirstDay(_dreMes.y, _dreMes.m);
+  var fim = dreLastDay(_dreMes.y, _dreMes.m);
+  var incluirConsorcio = document.getElementById("dreIncluirConsorcio").checked;
+
+  var list = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.data_competencia) return false;
+    if(c.data_competencia < ini || c.data_competencia > fim) return false;
+    if(!incluirConsorcio && c.centro_custo === 'consorcio') return false;
+    var cat = c.categorias_dre ? c.categorias_dre.nome : "Sem categoria";
+    return cat === catNome;
+  });
+  list.sort(function(a,b){ return Number(b.valor_total) - Number(a.valor_total); });
+
+  var total = 0;
+  list.forEach(function(c){ total += Number(c.valor_total) || 0; });
+
+  document.getElementById("drillTitle").textContent = catNome;
+  document.getElementById("drillInfo").textContent = dreMesLabel(_dreMes.y, _dreMes.m) + " · " + list.length + " comprobante" + (list.length !== 1 ? "s" : "");
+
+  var html = "";
+  if(list.length === 0){
+    html = '<div class="empty"><div class="empty-icon">🧾</div>Nenhum comprobante.</div>';
+  } else {
+    html = list.map(function(c){
+      var forn = c.fornecedores ? c.fornecedores.nome : "—";
+      return '<div class="drill-row" data-comp="'+c.id+'">' +
+               '<div class="drill-data">'+fmtDate(c.data_competencia)+'</div>' +
+               '<div class="drill-desc">'+escapeHtml(c.descricao||"—")+'<span class="forne">'+escapeHtml(forn)+'</span></div>' +
+               '<div class="drill-valor">'+fmtBRL(c.valor_total)+'</div>' +
+             '</div>';
+    }).join("");
+    html += '<div class="drill-total"><span>Total</span><span>'+fmtBRL(total)+'</span></div>';
+  }
+  document.getElementById("drillList").innerHTML = html;
+
+  // Click em um comprobante abre o modal de edição
+  document.getElementById("drillList").querySelectorAll("[data-comp]").forEach(function(r){
+    r.addEventListener("click", function(){
+      closeDrillModal();
+      openCompModal(r.dataset.comp);
+    });
+  });
+
+  document.getElementById("modalDrill").classList.add("open");
+}
+function closeDrillModal(){
+  document.getElementById("modalDrill").classList.remove("open");
 }
 
 async function exportDREExcel(){
@@ -2418,6 +2521,186 @@ async function goToIngresos(){
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO CAIXA · Fluxo em regime de caixa
+// ═════════════════════════════════════════════════════════════════════
+var _allPagamentosCaixa = null;
+
+function getCaixaPeriodo(){
+  return {
+    ini: document.getElementById("caixaDataIni").value || null,
+    fim: document.getElementById("caixaDataFim").value || null
+  };
+}
+function aplicarCaixaPeriodoPreset(preset){
+  var hoje = new Date();
+  var y = hoje.getFullYear(), m = hoje.getMonth();
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var ini = "", fim = "";
+  if(preset === "mes_atual"){ ini = iso(new Date(y,m,1)); fim = iso(new Date(y,m+1,0)); }
+  else if(preset === "mes_anterior"){ ini = iso(new Date(y,m-1,1)); fim = iso(new Date(y,m,0)); }
+  else if(preset === "ano_atual"){ ini = iso(new Date(y,0,1)); fim = iso(new Date(y,11,31)); }
+  document.getElementById("caixaDataIni").value = ini;
+  document.getElementById("caixaDataFim").value = fim;
+  document.querySelectorAll(".chip-btn[data-caixa-periodo]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.caixaPeriodo === preset);
+  });
+  renderCaixa();
+}
+
+async function renderCaixa(){
+  var per = getCaixaPeriodo();
+  var el = document.getElementById("caixaBody");
+  el.innerHTML = '<div class="loading">Carregando...</div>';
+
+  // Precisa de pagamentos + reservas (para entradas)
+  if(!_allPagamentosCaixa){
+    _allPagamentosCaixa = await api("pagamentos?select=*,comprobantes(descricao,fornecedores(nome))&order=data_pagamento.desc&limit=5000") || [];
+  }
+  var reservasResult = await loadReservasDRE();
+
+  // ── ENTRADAS (reservas · data_anticipo + data_saldo) ──
+  var entradas = [];  // { data, valor, label, meio }
+  if(reservasResult.ok){
+    // Precisa dos campos de anticipo e saldo que não estão em loadReservasDRE
+    // Faço fetch adicional com campos completos
+    var reservasCaixa = await api("reservas?select=id,nome,canal,apto,anticipo,saldo_cobrado,pago_anticipo,pago_saldo,data_anticipo,data_saldo,devolucao,status&limit=5000");
+    if(reservasCaixa){
+      reservasCaixa.forEach(function(r){
+        var st = String(r.status || "").toLowerCase();
+        if(st.indexOf("cancel") >= 0) return;
+        // Anticipo pago
+        if(r.data_anticipo && Number(r.anticipo) > 0){
+          var d = String(r.data_anticipo).slice(0,10);
+          if((!per.ini || d >= per.ini) && (!per.fim || d <= per.fim)){
+            entradas.push({
+              data: d, valor: Number(r.anticipo),
+              label: "Antecipado · " + (r.nome || "Sem nome"),
+              meio: (r.pago_anticipo || "").toLowerCase() || "outro",
+              tipo: "reserva_ant"
+            });
+          }
+        }
+        // Saldo pago
+        if(r.data_saldo && Number(r.saldo_cobrado) > 0){
+          var d2 = String(r.data_saldo).slice(0,10);
+          if((!per.ini || d2 >= per.ini) && (!per.fim || d2 <= per.fim)){
+            entradas.push({
+              data: d2, valor: Number(r.saldo_cobrado),
+              label: "Saldo · " + (r.nome || "Sem nome"),
+              meio: (r.pago_saldo || "").toLowerCase() || "outro",
+              tipo: "reserva_saldo"
+            });
+          }
+        }
+      });
+    }
+  }
+
+  // ── SAÍDAS (pagamentos · data_pagamento) ──
+  var saidas = [];
+  _allPagamentosCaixa.forEach(function(p){
+    var d = String(p.data_pagamento || "").slice(0,10);
+    if(!d) return;
+    if(per.ini && d < per.ini) return;
+    if(per.fim && d > per.fim) return;
+    var forn = (p.comprobantes && p.comprobantes.fornecedores) ? p.comprobantes.fornecedores.nome : "";
+    var desc = p.comprobantes ? p.comprobantes.descricao : "";
+    saidas.push({
+      data: d, valor: Number(p.valor),
+      label: forn + (desc ? " · " + desc : ""),
+      meio: p.meio_pagamento || "outro"
+    });
+  });
+
+  var totalEntradas = 0; entradas.forEach(function(e){ totalEntradas += e.valor; });
+  var totalSaidas   = 0; saidas.forEach(function(s){ totalSaidas += s.valor; });
+  var saldo = totalEntradas - totalSaidas;
+
+  // Agrupar por meio
+  var entradasPorMeio = {};
+  entradas.forEach(function(e){
+    var m = e.meio || "outro";
+    entradasPorMeio[m] = (entradasPorMeio[m] || 0) + e.valor;
+  });
+  var saidasPorMeio = {};
+  saidas.forEach(function(s){
+    var m = s.meio || "outro";
+    saidasPorMeio[m] = (saidasPorMeio[m] || 0) + s.valor;
+  });
+
+  // Normalizar nomes de meio (formato reservas vs comprobantes é diferente)
+  function labelMeio(m){
+    var lk = String(m).toLowerCase();
+    if(MEIO_LABEL[lk]) return MEIO_LABEL[lk];
+    if(lk.indexOf("inter") >= 0) return "Banco Inter · LG";
+    if(lk.indexOf("bradesco") >= 0) return "Bradesco";
+    if(lk.indexOf("itau") >= 0 || lk.indexOf("itaú") >= 0) return "Itaú";
+    if(lk.indexOf("pix") >= 0) return "Pix";
+    if(lk.indexOf("cart") >= 0) return "Cartão";
+    if(lk.indexOf("dinheiro") >= 0 || lk.indexOf("cash") >= 0) return "Dinheiro";
+    if(lk.indexOf("cripto") >= 0) return "Cripto";
+    if(lk.indexOf("transf") >= 0) return "Transferência";
+    return m || "Outro";
+  }
+
+  var html = "";
+
+  // Saldo card
+  html += '<div class="caixa-saldo '+(saldo < 0 ? 'negativo' : '')+'">' +
+            '<div class="caixa-saldo-label">Saldo do período (entradas − saídas)</div>' +
+            '<div class="caixa-saldo-valor">'+(saldo >= 0 ? '' : '−')+fmtBRL(Math.abs(saldo))+'</div>' +
+            '<div class="caixa-saldo-detail">' +
+              '<span>Entradas <b style="color:#2a5a3a">'+fmtBRL(totalEntradas)+'</b></span>' +
+              '<span>Saídas <b style="color:#7a3a3a">'+fmtBRL(totalSaidas)+'</b></span>' +
+            '</div>' +
+          '</div>';
+
+  // Tabela DRE-like
+  html += '<div class="dre-table">';
+  html += '<div class="dre-colheader"><div>Conta</div><div>R$</div><div>%</div></div>';
+
+  // ENTRADAS por meio
+  if(totalEntradas > 0){
+    var entMap = {};
+    Object.keys(entradasPorMeio).forEach(function(k){
+      var lab = labelMeio(k);
+      entMap[lab] = (entMap[lab] || 0) + entradasPorMeio[k];
+    });
+    html += dreRenderSec({ cls:'sec-receita', titulo:'Entradas (reservas)', sinal:'+' }, entMap, totalEntradas);
+  }
+
+  // SAIDAS por meio
+  if(totalSaidas > 0){
+    var saiMap = {};
+    Object.keys(saidasPorMeio).forEach(function(k){
+      var lab = labelMeio(k);
+      saiMap[lab] = (saiMap[lab] || 0) + saidasPorMeio[k];
+    });
+    html += dreRenderSec({ cls:'sec-custo-op', titulo:'Saídas (pagamentos)' }, saiMap, totalSaidas);
+  }
+
+  html += dreTotalRow(saldo >= 0 ? 'tot-bruto' : 'tot-liquido', 'Saldo líquido do período', saldo, totalEntradas, saldo < 0 ? 'negativo' : '');
+
+  html += '</div>';
+
+  if(entradas.length === 0 && saidas.length === 0){
+    html = '<div class="empty"><div class="empty-icon">🏦</div>Sem movimentos no período.</div>';
+  }
+  el.innerHTML = html;
+  document.getElementById("caixaSubtitle").textContent = entradas.length + " entrada" + (entradas.length !== 1 ? "s" : "") + " · " + saidas.length + " saída" + (saidas.length !== 1 ? "s" : "");
+}
+
+async function goToCaixa(){
+  showView("viewCaixa");
+  _allPagamentosCaixa = null; // força refresh
+  if(!document.getElementById("caixaDataIni").value){
+    aplicarCaixaPeriodoPreset("mes_atual");
+  } else {
+    renderCaixa();
+  }
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -2548,6 +2831,26 @@ function init(){
   if(chkCons) chkCons.addEventListener("change", renderDRE);
   var btnExpDRE = document.getElementById("btnExportDRE");
   if(btnExpDRE) btnExpDRE.addEventListener("click", exportDREExcel);
+  var chkCompare = document.getElementById("dreComparar");
+  if(chkCompare) chkCompare.addEventListener("change", renderDRE);
+
+  // Drill-down modal
+  var btnCloseDrill = document.getElementById("btnCloseDrill");
+  if(btnCloseDrill) btnCloseDrill.addEventListener("click", closeDrillModal);
+  var md = document.getElementById("modalDrill");
+  if(md) md.addEventListener("click", function(e){ if(e.target === md) closeDrillModal(); });
+
+  // ─── Caixa ───
+  document.querySelectorAll(".chip-btn[data-caixa-periodo]").forEach(function(b){
+    b.addEventListener("click", function(){ aplicarCaixaPeriodoPreset(b.dataset.caixaPeriodo); });
+  });
+  ["caixaDataIni","caixaDataFim"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", function(){
+      document.querySelectorAll(".chip-btn[data-caixa-periodo]").forEach(function(b){ b.classList.remove("active"); });
+      renderCaixa();
+    });
+  });
 
   // ─── Ingresos ───
   document.querySelectorAll(".chip-btn[data-ing-periodo]").forEach(function(b){
