@@ -577,6 +577,94 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO RETIROS SÓCIOS ═══════════════════════════════════════════ -->
+<div id="viewRetiros" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubReportes">← Reportes</button>
+      <div class="module-title-block">
+        <div class="module-title">💼 Retiros Sócios</div>
+        <div class="module-subtitle" id="retSubtitle">Distribuições aos sócios</div>
+      </div>
+    </div>
+
+    <div class="periodo-row">
+      <div class="periodo-presets">
+        <button class="chip-btn" data-ret-periodo="mes_atual">Mês atual</button>
+        <button class="chip-btn" data-ret-periodo="mes_anterior">Mês anterior</button>
+        <button class="chip-btn" data-ret-periodo="ano_atual">Ano</button>
+        <button class="chip-btn" data-ret-periodo="tudo">Tudo</button>
+      </div>
+      <div class="periodo-datas">
+        <input type="date" id="retDataIni" class="filter-input">
+        <span class="periodo-sep">até</span>
+        <input type="date" id="retDataFim" class="filter-input">
+      </div>
+    </div>
+
+    <div class="module-actions">
+      <button class="btn-primary" id="btnNovoRetiro">+ Novo retiro</button>
+      <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <button class="btn-ghost" id="btnExportRetiros">⬇ Descargar Excel</button>
+      </div>
+    </div>
+
+    <div id="retKpis" class="ing-kpis"></div>
+    <div id="retBody"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- Modal Novo Retiro -->
+<div class="overlay" id="modalRetiro">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="retiroModalTitle">Novo retiro de sócio</span>
+      <button class="btn-x" id="btnCloseRetiro">×</button>
+    </div>
+
+    <label>Sócio <span class="req">*</span></label>
+    <select id="rtSocio">
+      <option value="">Selecionar...</option>
+    </select>
+
+    <div class="row-2">
+      <div>
+        <label>Valor em R$ <span class="req">*</span></label>
+        <input type="number" id="rtValor" step="0.01" min="0" placeholder="0,00">
+      </div>
+      <div>
+        <label>Data <span class="req">*</span></label>
+        <input type="date" id="rtData">
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div>
+        <label>Meio <span class="req">*</span></label>
+        <select id="rtMeio">
+          <option value="cripto">Cripto (FIWIND/USDT)</option>
+          <option value="transf_ar">Transfer AR (Macro/terceiro)</option>
+          <option value="banco_inter">Banco Inter · LG</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div>
+        <label>Cuenta / destino</label>
+        <input type="text" id="rtCuenta" placeholder="FIWIND, BANCO MACRO, etc">
+      </div>
+    </div>
+
+    <label>Observações</label>
+    <textarea id="rtObs" rows="2" placeholder="Ex: Pagamento do hóspede Pedro Silva · ARS 500.000"></textarea>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" id="btnDeleteRetiro" style="display:none">Apagar</button>
+      <button class="btn-primary" id="btnSaveRetiro">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MÓDULO EGRESOS ══════════════════════════════════════════════════ -->
 <div id="viewEgresos" class="view">
   <div class="content">
@@ -787,6 +875,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.7.1"></script>
+<script src="app.js?v=0.8.0"></script>
 </body>
 </html>

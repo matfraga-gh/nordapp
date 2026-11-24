@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.7.1 · Egresos + comp-item compacto · 2026-11-24");
+console.log("NORDAPP v0.8.0 · Módulo Retiros Sócios · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.7.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.8.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -296,8 +296,9 @@ var HUB_CONFIG = {
       { id:"caixa", icon:"🏦", title:"Caixa", sub:"Saldos e fluxo", onlyRoles:["master","administracao","auditor"] },
       { id:"ingresos", icon:"📈", title:"Ingresos", sub:"Vendas e ocupação" },
       { id:"egresos", icon:"📉", title:"Egresos", sub:"Análise de gastos", onlyRoles:["master","administracao","auditor"] },
+      { id:"retiros_socios", icon:"💼", title:"Retiros Sócios", sub:"Distribuições", onlyRoles:["master","administracao","auditor"] },
       { id:"simples_nacional", icon:"🧾", title:"Simples Nacional", sub:"Base DAS", onlyRoles:["master","administracao","auditor"] },
-      { id:"comissoes", icon:"💼", title:"Comissões", sub:"Por canal / agente" }
+      { id:"comissoes", icon:"💰", title:"Comissões", sub:"Por canal / agente" }
     ]
   },
   hubAdmin: {
@@ -352,6 +353,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "ingresos"){ goToIngresos(); return; }
   if(moduleId === "caixa"){ goToCaixa(); return; }
   if(moduleId === "egresos"){ goToEgresos(); return; }
+  if(moduleId === "retiros_socios"){ goToRetiros(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -2639,7 +2641,8 @@ async function renderCaixa(){
     if(lk.indexOf("pix") >= 0) return "Pix";
     if(lk.indexOf("cart") >= 0) return "Cartão";
     if(lk.indexOf("dinheiro") >= 0 || lk.indexOf("cash") >= 0) return "Dinheiro";
-    if(lk.indexOf("cripto") >= 0) return "Cripto";
+    if(lk.indexOf("cripto") >= 0 || lk.indexOf("fiwind") >= 0 || lk.indexOf("usdt") >= 0) return "Cripto · Matias";
+    if(lk.indexOf("transf_ar") >= 0 || lk.indexOf("macro") >= 0) return "Transfer AR · Matias";
     if(lk.indexOf("transf") >= 0) return "Transferência";
     return m || "Outro";
   }
@@ -2926,6 +2929,271 @@ async function goToEgresos(){
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO RETIROS SÓCIOS
+// ═════════════════════════════════════════════════════════════════════
+var SOCIOS = ['Matias', 'Lao', 'Eze']; // 3 sócios (ordem canônica)
+var _editingRetiroId = null;
+var _retiroCatId = null;
+
+function getRetPeriodo(){
+  return {
+    ini: document.getElementById("retDataIni").value || null,
+    fim: document.getElementById("retDataFim").value || null
+  };
+}
+function aplicarRetPeriodoPreset(preset){
+  var hoje = new Date();
+  var y = hoje.getFullYear(), m = hoje.getMonth();
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var ini = "", fim = "";
+  if(preset === "mes_atual"){ ini = iso(new Date(y,m,1)); fim = iso(new Date(y,m+1,0)); }
+  else if(preset === "mes_anterior"){ ini = iso(new Date(y,m-1,1)); fim = iso(new Date(y,m,0)); }
+  else if(preset === "ano_atual"){ ini = iso(new Date(y,0,1)); fim = iso(new Date(y,11,31)); }
+  document.getElementById("retDataIni").value = ini;
+  document.getElementById("retDataFim").value = fim;
+  document.querySelectorAll(".chip-btn[data-ret-periodo]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.retPeriodo === preset);
+  });
+  renderRetiros();
+}
+
+function retirosFiltrados(){
+  var per = getRetPeriodo();
+  return _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre) return false;
+    if(c.categorias_dre.nome !== 'Retiros sócios') return false;
+    if(!c.data_competencia) return false;
+    if(per.ini && c.data_competencia < per.ini) return false;
+    if(per.fim && c.data_competencia > per.fim) return false;
+    return true;
+  });
+}
+
+async function renderRetiros(){
+  if(_allComps.length === 0) await loadComprobantes();
+  var list = retirosFiltrados();
+
+  // KPIs: total + por sócio
+  var total = 0;
+  var porSocio = {};
+  SOCIOS.forEach(function(s){ porSocio[s] = 0; });
+  list.forEach(function(c){
+    var v = Number(c.valor_total) || 0;
+    total += v;
+    var nome = c.fornecedores ? c.fornecedores.nome : "—";
+    if(porSocio[nome] !== undefined) porSocio[nome] += v;
+    else porSocio[nome] = v;
+  });
+
+  var kpisHtml = '<div class="ing-kpi hero span2">' +
+    '<div class="ing-kpi-label">Total retirado</div>' +
+    '<div class="ing-kpi-value">'+fmtBRL(total)+'</div>' +
+    '<div class="ing-kpi-sub">'+list.length+' retiro'+(list.length!==1?'s':'')+'</div>' +
+  '</div>';
+  SOCIOS.forEach(function(s){
+    var v = porSocio[s] || 0;
+    var pct = total > 0 ? (v / total) * 100 : 0;
+    kpisHtml += '<div class="ing-kpi">' +
+      '<div class="ing-kpi-label">'+s+'</div>' +
+      '<div class="ing-kpi-value">'+fmtBRL(v)+'</div>' +
+      '<div class="ing-kpi-sub">'+pct.toFixed(0)+'%</div>' +
+    '</div>';
+  });
+  document.getElementById("retKpis").innerHTML = kpisHtml;
+
+  // Lista de retiros
+  var el = document.getElementById("retBody");
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">💼</div>Sem retiros no período.</div>';
+    document.getElementById("retSubtitle").textContent = "0 retiros";
+    return;
+  }
+
+  list.sort(function(a,b){ return (b.data_competencia||"").localeCompare(a.data_competencia||""); });
+
+  var html = '<div class="ing-table"><div class="ing-table-title">Movimentos</div>' +
+    '<div class="ing-table-row header"><div>Sócio · data</div><div>Meio</div><div></div><div>R$</div><div></div></div>';
+  list.forEach(function(c){
+    var nome = c.fornecedores ? c.fornecedores.nome : "—";
+    var meio = c.meio_pagamento || "";
+    var meioLabel = meio === 'cripto' ? 'Cripto' : (meio === 'transf_ar' ? 'Transfer AR' : (MEIO_LABEL[meio] || meio || "—"));
+    html += '<div class="ing-table-row" data-ret-id="'+c.id+'">' +
+      '<div>'+escapeHtml(nome)+' · '+fmtDate(c.data_competencia)+'</div>' +
+      '<div>'+escapeHtml(meioLabel)+'</div>' +
+      '<div></div>' +
+      '<div>'+fmtMoney(c.valor_total)+'</div>' +
+      '<div></div>' +
+    '</div>';
+  });
+  html += '<div class="ing-table-row total"><div>Total</div><div></div><div></div><div>'+fmtMoney(total)+'</div><div></div></div></div>';
+
+  el.innerHTML = html;
+  document.getElementById("retSubtitle").textContent = list.length + " retiro" + (list.length !== 1 ? "s" : "") + " · " + fmtBRL(total);
+
+  // Click em um retiro abre modal de edição
+  el.querySelectorAll("[data-ret-id]").forEach(function(row){
+    row.addEventListener("click", function(){ openRetiroModal(row.dataset.retId); });
+  });
+}
+
+async function ensureCategoriaRetiros(){
+  if(_retiroCatId) return _retiroCatId;
+  var cat = _allCategorias.find(function(c){ return c.nome === 'Retiros sócios'; });
+  if(cat){ _retiroCatId = cat.id; return cat.id; }
+  // Cria se não existe
+  var r = await api("categorias_dre", "POST", { nome:'Retiros sócios', grupo:'nao_operacional', ordem:600, created_by: currentUser.username || "system" });
+  var created = Array.isArray(r) ? r[0] : r;
+  if(created){ _retiroCatId = created.id; await loadCategorias(); return created.id; }
+  return null;
+}
+
+async function populateSocioSelect(){
+  // Busca fornecedores dos sócios por nome
+  var sel = document.getElementById("rtSocio");
+  var options = [];
+  for(var i = 0; i < SOCIOS.length; i++){
+    var nome = SOCIOS[i];
+    var forn = _allFornecedores.find(function(f){ return (f.nome || "").toLowerCase() === nome.toLowerCase(); });
+    if(!forn){
+      // Criar fornecedor sócio
+      var r = await api("fornecedores", "POST", {
+        nome: nome,
+        tipo: 'parte_relacionada',
+        comentarios: '[SÓCIO NORDESTINA]'
+      });
+      var created = Array.isArray(r) ? r[0] : r;
+      if(created){
+        _allFornecedores.push(created);
+        forn = created;
+      }
+    }
+    if(forn) options.push('<option value="'+forn.id+'">'+escapeHtml(nome)+'</option>');
+  }
+  sel.innerHTML = '<option value="">Selecionar...</option>' + options.join("");
+}
+
+function openRetiroModal(id){
+  _editingRetiroId = id || null;
+  var c = null;
+  if(id) c = _allComps.find(function(x){ return String(x.id) === String(id); });
+
+  document.getElementById("retiroModalTitle").textContent = c ? "Editar retiro" : "Novo retiro de sócio";
+  document.getElementById("rtSocio").value = c ? (c.fornecedor_id || "") : "";
+  document.getElementById("rtValor").value = c ? (c.valor_total || "") : "";
+  document.getElementById("rtData").value = c ? (c.data_competencia || "") : new Date().toISOString().slice(0,10);
+  document.getElementById("rtMeio").value = c ? (c.meio_pagamento || "cripto") : "cripto";
+  document.getElementById("rtCuenta").value = c ? (c.banco_ref || "") : "";
+  document.getElementById("rtObs").value = c ? (c.observacoes || "") : "";
+  document.getElementById("btnDeleteRetiro").style.display = c ? "block" : "none";
+  document.getElementById("modalRetiro").classList.add("open");
+}
+function closeRetiroModal(){
+  document.getElementById("modalRetiro").classList.remove("open");
+  _editingRetiroId = null;
+}
+
+async function saveRetiro(){
+  if(!canEditComps()){ showToast("Sem permissão"); return; }
+  var socio = document.getElementById("rtSocio").value;
+  var valor = parseFloat(document.getElementById("rtValor").value);
+  var data  = document.getElementById("rtData").value;
+  var meio  = document.getElementById("rtMeio").value;
+  var cuenta = document.getElementById("rtCuenta").value.trim();
+  var obs   = document.getElementById("rtObs").value.trim();
+
+  if(!socio){ showToast("Selecione sócio"); return; }
+  if(!valor || valor <= 0){ showToast("Valor inválido"); return; }
+  if(!data){ showToast("Data obrigatória"); return; }
+
+  var catId = await ensureCategoriaRetiros();
+  if(!catId){ showToast("Erro ao localizar categoria 'Retiros sócios'"); return; }
+
+  var socioNome = "";
+  var forn = _allFornecedores.find(function(f){ return String(f.id) === String(socio); });
+  if(forn) socioNome = forn.nome;
+
+  var desc = "Retiro · " + socioNome + (cuenta ? " · " + cuenta : "");
+  var payload = {
+    fornecedor_id: Number(socio),
+    descricao: desc,
+    categoria_dre_id: catId,
+    centro_custo: 'geral',
+    valor_total: valor,
+    valor_pago: valor,
+    estado: 'pago',
+    data_competencia: data,
+    data_pagamento: data,
+    meio_pagamento: meio,
+    banco_ref: cuenta || null,
+    observacoes: '[RETIRO SÓCIO] ' + (obs || ''),
+    updated_at: new Date().toISOString()
+  };
+  if(!_editingRetiroId) payload.created_by = currentUser.username || "system";
+
+  var r;
+  if(_editingRetiroId){
+    r = await api("comprobantes?id=eq." + _editingRetiroId, "PATCH", payload);
+  } else {
+    r = await api("comprobantes", "POST", payload);
+  }
+  if(!r){ showToast("Erro ao salvar"); return; }
+  showToast(_editingRetiroId ? "Atualizado ✓" : "Retiro registrado ✓");
+  closeRetiroModal();
+  await loadComprobantes();
+  renderRetiros();
+}
+
+async function deleteRetiro(){
+  if(!_editingRetiroId) return;
+  if(!confirm("Apagar este retiro?")) return;
+  var r = await api("comprobantes?id=eq." + _editingRetiroId, "DELETE");
+  if(r === null){ showToast("Erro"); return; }
+  showToast("Retiro apagado");
+  closeRetiroModal();
+  await loadComprobantes();
+  renderRetiros();
+}
+
+function exportRetirosExcel(){
+  if(typeof XLSX === 'undefined'){ showToast("XLSX não carregou"); return; }
+  var list = retirosFiltrados();
+  if(list.length === 0){ showToast("Sem dados"); return; }
+  var rows = list.map(function(c){
+    var nome = c.fornecedores ? c.fornecedores.nome : "—";
+    return {
+      "Data": c.data_competencia || "",
+      "Sócio": nome,
+      "Valor R$": Number(c.valor_total) || 0,
+      "Meio": c.meio_pagamento || "",
+      "Cuenta/destino": c.banco_ref || "",
+      "Observações": (c.observacoes || "").replace('[RETIRO SÓCIO]', '').trim()
+    };
+  });
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:14},{wch:12},{wch:14},{wch:24},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, ws, "Retiros Sócios");
+  var per = getRetPeriodo();
+  var tag = per.ini && per.fim ? (per.ini + "_a_" + per.fim) : new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "NORDAPP_RetirosSocios_" + tag + ".xlsx");
+  showToast("Excel baixado ✓");
+}
+
+async function goToRetiros(){
+  showView("viewRetiros");
+  if(_allFornecedores.length === 0) await loadFornecedores();
+  if(_allCategorias.length === 0) await loadCategorias();
+  await populateSocioSelect();
+  await ensureCategoriaRetiros();
+  if(!document.getElementById("retDataIni").value){
+    aplicarRetPeriodoPreset("ano_atual");
+  } else {
+    renderRetiros();
+  }
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -3064,6 +3332,30 @@ function init(){
   if(btnCloseDrill) btnCloseDrill.addEventListener("click", closeDrillModal);
   var md = document.getElementById("modalDrill");
   if(md) md.addEventListener("click", function(e){ if(e.target === md) closeDrillModal(); });
+
+  // ─── Retiros Sócios ───
+  document.querySelectorAll(".chip-btn[data-ret-periodo]").forEach(function(b){
+    b.addEventListener("click", function(){ aplicarRetPeriodoPreset(b.dataset.retPeriodo); });
+  });
+  ["retDataIni","retDataFim"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", function(){
+      document.querySelectorAll(".chip-btn[data-ret-periodo]").forEach(function(b){ b.classList.remove("active"); });
+      renderRetiros();
+    });
+  });
+  var btnNovoR = document.getElementById("btnNovoRetiro");
+  if(btnNovoR) btnNovoR.addEventListener("click", function(){ openRetiroModal(null); });
+  var btnCloseR = document.getElementById("btnCloseRetiro");
+  if(btnCloseR) btnCloseR.addEventListener("click", closeRetiroModal);
+  var btnSaveR = document.getElementById("btnSaveRetiro");
+  if(btnSaveR) btnSaveR.addEventListener("click", saveRetiro);
+  var btnDelR = document.getElementById("btnDeleteRetiro");
+  if(btnDelR) btnDelR.addEventListener("click", deleteRetiro);
+  var mret = document.getElementById("modalRetiro");
+  if(mret) mret.addEventListener("click", function(e){ if(e.target === mret) closeRetiroModal(); });
+  var btnExpRet = document.getElementById("btnExportRetiros");
+  if(btnExpRet) btnExpRet.addEventListener("click", exportRetirosExcel);
 
   // ─── Egresos ───
   document.querySelectorAll(".chip-btn[data-egr-periodo]").forEach(function(b){
