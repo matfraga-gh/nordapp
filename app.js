@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.6.2 · Ingresos 9 unidades + app_config checkout + apto · 2026-11-24");
+console.log("NORDAPP v0.6.3 · Ingresos + Outros servicos · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.2 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.3 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -2216,7 +2216,38 @@ async function renderIngresos(){
       '<div class="ing-ocup-bar"><div class="ing-ocup-bar-fill" style="width:'+Math.min(100,ocupacao).toFixed(1)+'%"></div></div>' +
     '</div>';
 
-  // Breakdown por canal
+  // ── Outros serviços (receitas em comprobantes, exceto Hospedagem) ──
+  if(_allComps.length === 0) await loadComprobantes();
+  var outrosList = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre) return false;
+    if(c.categorias_dre.grupo !== 'receita') return false;
+    var nome = (c.categorias_dre.nome || "").toLowerCase();
+    if(nome.indexOf("hospedagem") >= 0) return false; // já coberto por reservas
+    if(!c.data_competencia) return false;
+    if(per.ini && c.data_competencia < per.ini) return false;
+    if(per.fim && c.data_competencia > per.fim) return false;
+    return true;
+  });
+  // Agrupa por categoria
+  var outrosPorCategoria = {};
+  var outrosTotal = 0;
+  outrosList.forEach(function(c){
+    var cat = c.categorias_dre.nome;
+    outrosPorCategoria[cat] = (outrosPorCategoria[cat] || 0) + (Number(c.valor_total) || 0);
+    outrosTotal += Number(c.valor_total) || 0;
+  });
+
+  // Receita total agora inclui Outros serviços
+  var receitaTotalGeral = receita + outrosTotal;
+
+  // Atualizar hero KPI com receita + outros (mantem ticket/diária só hospedagem)
+  document.getElementById("ingKpis").querySelector(".ing-kpi.hero .ing-kpi-value").innerHTML = fmtBRL(receitaTotalGeral);
+  var heroSub = list.length + ' reserva'+(list.length!==1?'s':'')+' · '+noitesOcupadas+' noites';
+  if(outrosTotal > 0) heroSub += ' · <span style="color:var(--ocean-mid);font-weight:600">+ '+outrosList.length+' outros</span>';
+  document.getElementById("ingKpis").querySelector(".ing-kpi.hero .ing-kpi-sub").innerHTML = heroSub;
+
+  // Breakdown por canal (hospedagem)
   var canalMap = {};
   list.forEach(function(r){
     var c = (r.canal || "Direta").trim() || "Direta";
@@ -2237,7 +2268,7 @@ async function renderIngresos(){
       '<div>Canal</div><div>Rsv</div><div>Noites</div><div>Receita</div><div>%</div>' +
     '</div>';
   canalArr.forEach(function(c){
-    var pct = receita > 0 ? (c.receita / receita) * 100 : 0;
+    var pct = receitaTotalGeral > 0 ? (c.receita / receitaTotalGeral) * 100 : 0;
     canalHtml += '<div class="ing-table-row">' +
       '<div>'+escapeHtml(c.canal)+'</div>' +
       '<div>'+c.reservas+'</div>' +
@@ -2246,11 +2277,22 @@ async function renderIngresos(){
       '<div>'+pct.toFixed(0)+'%</div>' +
     '</div>';
   });
+  // Linha(s) Outros serviços
+  Object.keys(outrosPorCategoria).sort(function(a,b){ return outrosPorCategoria[b]-outrosPorCategoria[a]; }).forEach(function(cat){
+    var pct = receitaTotalGeral > 0 ? (outrosPorCategoria[cat] / receitaTotalGeral) * 100 : 0;
+    canalHtml += '<div class="ing-table-row" style="color:rgba(240,216,144,0.95)">' +
+      '<div>'+escapeHtml(cat)+' <span style="font-size:10px;opacity:0.7">(não-hosp.)</span></div>' +
+      '<div>—</div>' +
+      '<div>—</div>' +
+      '<div>'+fmtMoney(outrosPorCategoria[cat])+'</div>' +
+      '<div>'+pct.toFixed(0)+'%</div>' +
+    '</div>';
+  });
   canalHtml += '<div class="ing-table-row total">' +
-    '<div>Total</div><div>'+list.length+'</div><div>'+noitesOcupadas+'</div><div>'+fmtMoney(receita)+'</div><div>100%</div>' +
+    '<div>Total</div><div>'+list.length+'</div><div>'+noitesOcupadas+'</div><div>'+fmtMoney(receitaTotalGeral)+'</div><div>100%</div>' +
   '</div></div>';
 
-  // Breakdown por apto (usa mesmo cache de reservas)
+  // Breakdown por unidade (usa mesmo cache de reservas)
   var aptoMap = {};
   list.forEach(function(r){
     var ap = (r.apto || "—").trim() || "—";
@@ -2266,9 +2308,9 @@ async function renderIngresos(){
     .sort(function(a,b){ return b.receita - a.receita; });
 
   var aptoHtml = '<div class="ing-table">' +
-    '<div class="ing-table-title">Por apto</div>' +
+    '<div class="ing-table-title">Por unidade</div>' +
     '<div class="ing-table-row header">' +
-      '<div>Apto</div><div>Rsv</div><div>Noites</div><div>Receita</div><div>Ocup</div>' +
+      '<div>Unidade</div><div>Rsv</div><div>Noites</div><div>Receita</div><div>Ocup</div>' +
     '</div>';
   aptoArr.forEach(function(a){
     var ocupApto = diasPeriodo > 0 ? (a.noites / diasPeriodo) * 100 : 0;
@@ -2280,41 +2322,76 @@ async function renderIngresos(){
       '<div>'+ocupApto.toFixed(0)+'%</div>' +
     '</div>';
   });
+  // Linha Outros serviços (sem unidade / sem ocupação)
+  if(outrosTotal > 0){
+    aptoHtml += '<div class="ing-table-row" style="color:rgba(240,216,144,0.95)">' +
+      '<div>Outros serviços <span style="font-size:10px;opacity:0.7">(não-hosp.)</span></div>' +
+      '<div>—</div>' +
+      '<div>—</div>' +
+      '<div>'+fmtMoney(outrosTotal)+'</div>' +
+      '<div>—</div>' +
+    '</div>';
+  }
   aptoHtml += '</div>';
 
   var html = canalHtml + aptoHtml;
-  if(list.length === 0){
-    html = '<div class="empty"><div class="empty-icon">📈</div>Sem reservas no período.</div>';
+  if(list.length === 0 && outrosTotal === 0){
+    html = '<div class="empty"><div class="empty-icon">📈</div>Sem reservas nem outros serviços no período.</div>';
   }
   el.innerHTML = html;
-  document.getElementById("ingSubtitle").textContent = list.length + " reserva" + (list.length !== 1 ? "s" : "") + " no período";
+  var subtitle = list.length + " reserva" + (list.length !== 1 ? "s" : "");
+  if(outrosList.length > 0) subtitle += " + " + outrosList.length + " outro" + (outrosList.length !== 1 ? "s" : "");
+  document.getElementById("ingSubtitle").textContent = subtitle + " no período";
 }
 
 function exportIngresosExcel(){
   if(typeof XLSX === 'undefined' || !_ingReservas){ showToast("Sem dados"); return; }
   var per = getIngPeriodo();
   var list = filtrarIngReservasNoPeriodo(_ingReservas, per);
-  if(list.length === 0){ showToast("Sem dados"); return; }
 
   var rows = list.map(function(r){
     var n = (r.checkin && r.checkout) ? noitesEntre(r.checkin, r.checkout) : 0;
     return {
-      "Check-in": r.checkin || "",
-      "Check-out": r.checkout || "",
-      "Noites": n,
+      "Tipo": "Hospedagem",
+      "Data": r.checkin || "",
+      "Unidade": r.apto || "",
       "Canal": r.canal || "",
-      "Status": r.status || "",
-      "Total": Number(r.total) || 0,
-      "Adicionais": reservaReceitaAdicional(r),
-      "Devolução": Number(r.devolucao) || 0,
-      "Receita líquida": reservaReceita(r)
+      "Noites": n,
+      "Receita": reservaReceita(r),
+      "Detalhe": (r.status || "") + (r.checkout ? " · co " + r.checkout : "")
     };
   });
 
+  // Outros serviços
+  var outros = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre) return false;
+    if(c.categorias_dre.grupo !== 'receita') return false;
+    var nome = (c.categorias_dre.nome || "").toLowerCase();
+    if(nome.indexOf("hospedagem") >= 0) return false;
+    if(!c.data_competencia) return false;
+    if(per.ini && c.data_competencia < per.ini) return false;
+    if(per.fim && c.data_competencia > per.fim) return false;
+    return true;
+  });
+  outros.forEach(function(c){
+    rows.push({
+      "Tipo": "Outros serviços",
+      "Data": c.data_competencia || "",
+      "Unidade": "",
+      "Canal": c.categorias_dre.nome,
+      "Noites": "",
+      "Receita": Number(c.valor_total) || 0,
+      "Detalhe": c.descricao || ""
+    });
+  });
+
+  if(rows.length === 0){ showToast("Sem dados"); return; }
+
   var wb = XLSX.utils.book_new();
   var ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{wch:12},{wch:12},{wch:8},{wch:16},{wch:14},{wch:12},{wch:12},{wch:12},{wch:14}];
-  XLSX.utils.book_append_sheet(wb, ws, "Reservas");
+  ws['!cols'] = [{wch:14},{wch:12},{wch:16},{wch:16},{wch:8},{wch:12},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws, "Ingresos");
   var tag = (per.ini && per.fim) ? (per.ini + "_a_" + per.fim) : new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, "NORDAPP_Ingresos_" + tag + ".xlsx");
   showToast("Excel baixado ✓");
