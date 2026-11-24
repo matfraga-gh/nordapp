@@ -361,6 +361,9 @@ a { color: var(--ocean); text-decoration: none; }
 
 .filter-row {
   display: flex; gap: 8px; margin-bottom: 10px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .filter-input, .filter-select {
   flex: 1;
