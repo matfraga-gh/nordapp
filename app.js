@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.2.3 · Inter sans + contraste + botão descarga · 2026-11-24");
+console.log("NORDAPP v0.3.0 · Comprobantes + Categorias DRE + Pagamentos · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.2.3 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.3.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -344,6 +344,7 @@ function goToHub(hubId){
 function goToModule(moduleId, parentHubId, title){
   // Módulos já implementados
   if(moduleId === "fornecedores"){ goToFornecedores(); return; }
+  if(moduleId === "comprobantes"){ goToComprobantes(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -641,6 +642,451 @@ function escapeHtml(s){
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO COMPROBANTES
+// ═════════════════════════════════════════════════════════════════════
+var _allComps = [];
+var _allCategorias = [];
+var _editingCompId = null;
+var _pagComp = null; // comprobante alvo do modal de pagamento
+
+var CENTRO_LABEL = {
+  geral: "Geral",
+  lofts: "Lofts",
+  casa_nordestina: "Casa Nordestina",
+  consorcio: "Consórcio"
+};
+var GRUPO_LABEL = {
+  receita: "Receita",
+  custo_operacional: "Custo operacional",
+  despesa_admin: "Despesa administrativa",
+  despesa_financeira: "Despesa financeira",
+  tributos: "Tributos",
+  nao_operacional: "Não operacional"
+};
+var MEIO_LABEL = {
+  banco_inter: "Banco Inter · LG",
+  banco_bradesco: "Bradesco",
+  banco_itau: "Itaú",
+  cartao_corp: "Cartão corp.",
+  pix: "Pix",
+  dinheiro: "Dinheiro",
+  cripto: "Cripto",
+  outro: "Outro"
+};
+var ESTADO_LABEL = {
+  pendente: "Pendente",
+  pago_parcial: "Parcial",
+  pago: "Pago",
+  anulado: "Anulado"
+};
+
+function canEditComps(){
+  return currentRole === 'master' || currentRole === 'administracao' || currentRole === 'reservas';
+}
+function canAnularComps(){
+  return currentRole === 'master' || currentRole === 'administracao';
+}
+
+function fmtBRL(v){
+  var n = Number(v) || 0;
+  return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+}
+function fmtDate(iso){
+  if(!iso) return "—";
+  var d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'2-digit' });
+}
+
+async function loadCategorias(){
+  var data = await api("categorias_dre?select=*&ativo=eq.true&order=ordem.asc");
+  _allCategorias = data || [];
+  return _allCategorias;
+}
+
+async function loadComprobantes(){
+  var el = document.getElementById("compList");
+  el.innerHTML = '<div class="loading">Carregando...</div>';
+  // Join com fornecedor + categoria
+  var q = "comprobantes?select=*,fornecedores(nome,tipo),categorias_dre(nome,grupo)&order=data_competencia.desc&limit=500";
+  var data = await api(q);
+  if(!data){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">⚠</div>Erro ao carregar.</div>';
+    return;
+  }
+  _allComps = data;
+  renderCompKpis();
+  renderCompList();
+  document.getElementById("compSubtitle").textContent = data.length + " comprobante" + (data.length !== 1 ? "s" : "");
+}
+
+function renderCompKpis(){
+  var pendentes = 0, pagos = 0, qtdPend = 0;
+  _allComps.forEach(function(c){
+    if(c.estado === 'anulado') return;
+    var tot = Number(c.valor_total) || 0;
+    var pg = Number(c.valor_pago) || 0;
+    pendentes += (tot - pg);
+    pagos += pg;
+    if(c.estado === 'pendente' || c.estado === 'pago_parcial') qtdPend++;
+  });
+  document.getElementById("compKpis").innerHTML =
+    '<div class="kpi-card"><div class="kpi-label">A pagar</div><div class="kpi-value pendente">' + fmtBRL(pendentes) + '</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Pago</div><div class="kpi-value pago">' + fmtBRL(pagos) + '</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Pendentes</div><div class="kpi-value">' + qtdPend + '</div></div>';
+}
+
+function renderCompList(){
+  var search = (document.getElementById("compSearch").value || "").toLowerCase().trim();
+  var estF = document.getElementById("compEstadoFilter").value;
+  var ccF  = document.getElementById("compCentroFilter").value;
+  var catF = document.getElementById("compCategoriaFilter").value;
+  var ord  = document.getElementById("compOrderBy").value;
+
+  var list = _allComps.slice();
+  if(estF) list = list.filter(function(c){ return c.estado === estF; });
+  if(ccF)  list = list.filter(function(c){ return c.centro_custo === ccF; });
+  if(catF) list = list.filter(function(c){ return String(c.categoria_dre_id) === catF; });
+  if(search){
+    list = list.filter(function(c){
+      var forn = c.fornecedores ? (c.fornecedores.nome || "") : "";
+      return (c.descricao || "").toLowerCase().indexOf(search) >= 0
+          || forn.toLowerCase().indexOf(search) >= 0;
+    });
+  }
+  if(ord === "competencia_asc") list.sort(function(a,b){ return (a.data_competencia||"").localeCompare(b.data_competencia||""); });
+  else if(ord === "valor_desc") list.sort(function(a,b){ return Number(b.valor_total) - Number(a.valor_total); });
+  else if(ord === "vencimento_asc") list.sort(function(a,b){
+    var av = a.data_vencimento || "9999-12-31";
+    var bv = b.data_vencimento || "9999-12-31";
+    return av.localeCompare(bv);
+  });
+  else list.sort(function(a,b){ return (b.data_competencia||"").localeCompare(a.data_competencia||""); });
+
+  var el = document.getElementById("compList");
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🧾</div>Nenhum comprobante.</div>';
+    return;
+  }
+
+  var canEdit = canEditComps();
+  el.innerHTML = list.map(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "—";
+    var cat  = c.categorias_dre ? c.categorias_dre.nome : "Sem categoria";
+    var valorTotal = Number(c.valor_total) || 0;
+    var valorPago  = Number(c.valor_pago) || 0;
+    var saldo = valorTotal - valorPago;
+    var valorHtml = fmtBRL(valorTotal);
+    if(c.estado === 'pago_parcial'){
+      valorHtml += '<div style="font-size:11px;color:var(--text-soft);margin-top:2px">saldo ' + fmtBRL(saldo) + '</div>';
+    }
+    var estado = c.estado || 'pendente';
+    var actionsHtml = '';
+    if(canEdit && estado !== 'anulado'){
+      actionsHtml = '<div class="comp-item-actions">';
+      if(estado !== 'pago'){
+        actionsHtml += '<button class="primary" data-pag="'+c.id+'">💵 Registrar pagamento</button>';
+      }
+      actionsHtml += '<button data-edit="'+c.id+'">✎ Editar</button>';
+      if(c.anexo_url){
+        actionsHtml += '<button data-anexo="'+c.anexo_url+'">📎 Anexo</button>';
+      }
+      actionsHtml += '</div>';
+    } else if(c.anexo_url){
+      actionsHtml = '<div class="comp-item-actions"><button data-anexo="'+c.anexo_url+'">📎 Ver anexo</button></div>';
+    }
+
+    return '<div class="comp-item estado-'+estado+'">' +
+             '<div class="comp-item-head">' +
+               '<div class="comp-item-desc">'+escapeHtml(c.descricao||"—")+'</div>' +
+               '<div class="comp-item-valor">'+valorHtml+'</div>' +
+             '</div>' +
+             '<div class="comp-item-meta">' +
+               '<div class="comp-item-forne">'+escapeHtml(forn)+'</div>' +
+               '<div>comp. '+fmtDate(c.data_competencia)+'</div>' +
+             '</div>' +
+             '<div class="comp-item-chips">' +
+               '<span class="chip-estado '+estado+'">'+(ESTADO_LABEL[estado]||estado)+'</span>' +
+               '<span class="chip-centro">'+(CENTRO_LABEL[c.centro_custo]||c.centro_custo)+'</span>' +
+               '<span class="chip-categoria">'+escapeHtml(cat)+'</span>' +
+             '</div>' +
+             actionsHtml +
+           '</div>';
+  }).join("");
+
+  // Listeners inline
+  el.querySelectorAll("[data-pag]").forEach(function(b){
+    b.addEventListener("click", function(e){ e.stopPropagation(); openPagamentoModal(b.dataset.pag); });
+  });
+  el.querySelectorAll("[data-edit]").forEach(function(b){
+    b.addEventListener("click", function(e){ e.stopPropagation(); openCompModal(b.dataset.edit); });
+  });
+  el.querySelectorAll("[data-anexo]").forEach(function(b){
+    b.addEventListener("click", function(e){ e.stopPropagation(); window.open(b.dataset.anexo, "_blank"); });
+  });
+  // Click en item (sin botones) abre edit
+  el.querySelectorAll(".comp-item").forEach(function(item, i){
+    item.addEventListener("click", function(){
+      if(canEdit) openCompModal(list[i].id);
+    });
+  });
+}
+
+function populateCategoriaSelects(){
+  var opts = _allCategorias.map(function(c){
+    return '<option value="'+c.id+'">'+escapeHtml(c.nome)+'</option>';
+  }).join("");
+
+  // Filtro
+  var sel = document.getElementById("compCategoriaFilter");
+  sel.innerHTML = '<option value="">Todas categorias DRE</option>' + opts;
+
+  // Modal form
+  var selForm = document.getElementById("cfCategoria");
+  selForm.innerHTML = '<option value="">Selecionar...</option>' + opts + '<option value="__nova__" style="font-style:italic">+ Criar nova categoria</option>';
+}
+
+function populateFornecedorSelect(){
+  var opts = _allFornecedores.slice().sort(function(a,b){
+    return (a.nome||"").localeCompare(b.nome||"");
+  }).map(function(f){
+    return '<option value="'+f.id+'">'+escapeHtml(f.nome)+'</option>';
+  }).join("");
+  document.getElementById("cfFornecedor").innerHTML = '<option value="">Selecionar fornecedor...</option>' + opts;
+}
+
+function openCompModal(id){
+  _editingCompId = id || null;
+  var comp = null;
+  if(id){ comp = _allComps.find(function(c){ return String(c.id) === String(id); }); }
+
+  document.getElementById("compModalTitle").textContent = comp ? "Editar comprobante" : "Novo comprobante";
+  document.getElementById("cfDescricao").value = comp ? (comp.descricao || "") : "";
+  document.getElementById("cfFornecedor").value = comp ? (comp.fornecedor_id || "") : "";
+  document.getElementById("cfCategoria").value = comp ? (comp.categoria_dre_id || "") : "";
+  document.getElementById("cfCentroCusto").value = comp ? (comp.centro_custo || "geral") : "geral";
+  document.getElementById("cfCompetencia").value = comp ? (comp.data_competencia || "") : new Date().toISOString().slice(0,10);
+  document.getElementById("cfVencimento").value = comp ? (comp.data_vencimento || "") : "";
+  document.getElementById("cfValor").value = comp ? (comp.valor_total || "") : "";
+  document.getElementById("cfMeio").value = comp ? (comp.meio_pagamento || "") : "";
+  document.getElementById("cfObs").value = comp ? (comp.observacoes || "") : "";
+  document.getElementById("cfAnexo").value = "";
+  var hint = document.getElementById("cfAnexoHint");
+  if(comp && comp.anexo_url){
+    hint.innerHTML = 'Já existe anexo: <a href="'+comp.anexo_url+'" target="_blank" style="color:var(--ocean);text-decoration:underline">'+escapeHtml(comp.anexo_nome||"ver")+'</a> · substituir?';
+  } else {
+    hint.textContent = "Opcional · até 10MB";
+  }
+
+  var btnAnular = document.getElementById("btnAnularComp");
+  btnAnular.style.display = (comp && canAnularComps() && comp.estado !== 'anulado') ? "block" : "none";
+
+  document.getElementById("modalComp").classList.add("open");
+}
+
+function closeCompModal(){
+  document.getElementById("modalComp").classList.remove("open");
+  _editingCompId = null;
+}
+
+async function uploadAnexo(file){
+  if(!file) return { url: null, nome: null };
+  var ext = file.name.split('.').pop().toLowerCase();
+  var ts = Date.now();
+  var safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  var path = "anexo_" + ts + "_" + safe;
+  var url = SB_URL + "/storage/v1/object/comprobantes-anexos/" + encodeURIComponent(path);
+  var r = await fetch(url, {
+    method: "POST",
+    headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "x-upsert": "true" },
+    body: file
+  });
+  if(!r.ok){
+    console.error("Upload anexo falhou", r.status, await r.text());
+    showToast("Falha ao subir anexo");
+    return { url: null, nome: file.name };
+  }
+  var publicUrl = SB_URL + "/storage/v1/object/public/comprobantes-anexos/" + encodeURIComponent(path);
+  return { url: publicUrl, nome: file.name };
+}
+
+async function saveComp(){
+  if(!canEditComps()){ showToast("Sem permissão"); return; }
+
+  var descricao = document.getElementById("cfDescricao").value.trim();
+  var fornId    = document.getElementById("cfFornecedor").value;
+  var catId     = document.getElementById("cfCategoria").value;
+  var centro    = document.getElementById("cfCentroCusto").value;
+  var compet    = document.getElementById("cfCompetencia").value;
+  var venc      = document.getElementById("cfVencimento").value;
+  var valor     = parseFloat(document.getElementById("cfValor").value);
+  var meio      = document.getElementById("cfMeio").value;
+  var obs       = document.getElementById("cfObs").value.trim();
+  var fileInput = document.getElementById("cfAnexo");
+  var file      = fileInput.files[0];
+
+  if(!descricao){ showToast("Descrição é obrigatória"); return; }
+  if(!fornId){ showToast("Selecione fornecedor"); return; }
+  if(!catId || catId === "__nova__"){ showToast("Selecione categoria DRE"); return; }
+  if(!compet){ showToast("Data de competência obrigatória"); return; }
+  if(!valor || valor <= 0){ showToast("Valor inválido"); return; }
+  if(file && file.size > 10 * 1024 * 1024){ showToast("Anexo >10MB"); return; }
+
+  var anexo = { url: null, nome: null };
+  if(file){
+    showToast("Subindo anexo...");
+    anexo = await uploadAnexo(file);
+  }
+
+  var payload = {
+    descricao: descricao,
+    fornecedor_id: Number(fornId),
+    categoria_dre_id: Number(catId),
+    centro_custo: centro,
+    data_competencia: compet,
+    data_vencimento: venc || null,
+    valor_total: valor,
+    meio_pagamento: meio || null,
+    observacoes: obs || null,
+    updated_at: new Date().toISOString()
+  };
+  if(anexo.url){
+    payload.anexo_url = anexo.url;
+    payload.anexo_nome = anexo.nome;
+  }
+  if(!_editingCompId){
+    payload.created_by = currentUser.username || currentUser.email || "system";
+  }
+
+  var path = _editingCompId ? "comprobantes?id=eq." + _editingCompId : "comprobantes";
+  var method = _editingCompId ? "PATCH" : "POST";
+  var r = await api(path, method, payload);
+  if(!r){ showToast("Erro ao salvar"); return; }
+  showToast(_editingCompId ? "Atualizado ✓" : "Comprobante criado ✓");
+  closeCompModal();
+  await loadComprobantes();
+}
+
+async function anularComp(){
+  if(!canAnularComps()){ showToast("Sem permissão"); return; }
+  if(!_editingCompId) return;
+  var motivo = prompt("Motivo da anulação:");
+  if(motivo === null) return;
+  var payload = {
+    estado: 'anulado',
+    anulado_at: new Date().toISOString(),
+    anulado_por: currentUser.username || "system",
+    anulado_motivo: motivo || "—"
+  };
+  var r = await api("comprobantes?id=eq." + _editingCompId, "PATCH", payload);
+  if(!r){ showToast("Erro"); return; }
+  showToast("Comprobante anulado");
+  closeCompModal();
+  await loadComprobantes();
+}
+
+// ── Modal pagamento ──
+function openPagamentoModal(compId){
+  _pagComp = _allComps.find(function(c){ return String(c.id) === String(compId); });
+  if(!_pagComp) return;
+  var saldo = Number(_pagComp.valor_total) - Number(_pagComp.valor_pago || 0);
+  document.getElementById("pagInfo").innerHTML =
+    '<strong>'+escapeHtml(_pagComp.descricao)+'</strong><br>' +
+    'Total: '+fmtBRL(_pagComp.valor_total)+' · Pago: '+fmtBRL(_pagComp.valor_pago||0)+'<br>' +
+    'Saldo: <strong>'+fmtBRL(saldo)+'</strong>';
+  document.getElementById("pfValor").value = saldo.toFixed(2);
+  document.getElementById("pfValor").max = saldo;
+  document.getElementById("pfData").value = new Date().toISOString().slice(0,10);
+  document.getElementById("pfMeio").value = _pagComp.meio_pagamento || "";
+  document.getElementById("pfObs").value = "";
+  document.getElementById("modalPag").classList.add("open");
+}
+function closePagamentoModal(){
+  document.getElementById("modalPag").classList.remove("open");
+  _pagComp = null;
+}
+
+async function savePagamento(){
+  if(!canEditComps()){ showToast("Sem permissão"); return; }
+  if(!_pagComp) return;
+  var valor = parseFloat(document.getElementById("pfValor").value);
+  var data = document.getElementById("pfData").value;
+  var meio = document.getElementById("pfMeio").value;
+  var obs  = document.getElementById("pfObs").value.trim();
+
+  var saldo = Number(_pagComp.valor_total) - Number(_pagComp.valor_pago || 0);
+  if(!valor || valor <= 0){ showToast("Valor inválido"); return; }
+  if(valor > saldo + 0.01){ showToast("Valor excede saldo"); return; }
+  if(!data){ showToast("Data obrigatória"); return; }
+
+  // 1. inserir pagamento (histórico)
+  var pay = {
+    comprobante_id: _pagComp.id,
+    valor: valor,
+    data_pagamento: data,
+    meio_pagamento: meio || null,
+    observacoes: obs || null,
+    created_by: currentUser.username || "system"
+  };
+  var r1 = await api("pagamentos", "POST", pay);
+  if(!r1){ showToast("Erro ao registrar"); return; }
+
+  // 2. atualizar comprobante
+  var novoPago = Number(_pagComp.valor_pago || 0) + valor;
+  var tot = Number(_pagComp.valor_total);
+  var novoEstado = (novoPago + 0.01 >= tot) ? 'pago' : 'pago_parcial';
+  var patch = {
+    valor_pago: novoPago,
+    estado: novoEstado,
+    updated_at: new Date().toISOString()
+  };
+  if(novoEstado === 'pago') patch.data_pagamento = data;
+  if(meio && !_pagComp.meio_pagamento) patch.meio_pagamento = meio;
+
+  var r2 = await api("comprobantes?id=eq." + _pagComp.id, "PATCH", patch);
+  if(!r2){ showToast("Pago registrado mas estado não atualizou"); }
+  else { showToast(novoEstado === 'pago' ? "Pago ✓" : "Pagamento parcial registrado ✓"); }
+  closePagamentoModal();
+  await loadComprobantes();
+}
+
+// ── Modal nova categoria DRE ──
+function openCatModal(){
+  document.getElementById("catNome").value = "";
+  document.getElementById("catGrupo").value = "custo_operacional";
+  document.getElementById("modalCat").classList.add("open");
+}
+function closeCatModal(){
+  document.getElementById("modalCat").classList.remove("open");
+}
+async function saveCategoria(){
+  var nome = document.getElementById("catNome").value.trim();
+  var grupo = document.getElementById("catGrupo").value;
+  if(!nome){ showToast("Nome obrigatório"); return; }
+  var payload = { nome: nome, grupo: grupo, ordem: 1000, created_by: currentUser.username || "system" };
+  var r = await api("categorias_dre", "POST", payload);
+  if(!r){ showToast("Erro (nome duplicado?)"); return; }
+  showToast("Categoria criada ✓");
+  await loadCategorias();
+  populateCategoriaSelects();
+  // Pré-selecionar a nova
+  var created = Array.isArray(r) ? r[0] : r;
+  if(created && created.id){
+    document.getElementById("cfCategoria").value = created.id;
+  }
+  closeCatModal();
+}
+
+async function goToComprobantes(){
+  showView("viewComprobantes");
+  // Garantir que temos fornecedores e categorias em cache
+  if(_allFornecedores.length === 0) await loadFornecedores();
+  if(_allCategorias.length === 0)  await loadCategorias();
+  populateFornecedorSelect();
+  populateCategoriaSelects();
+  await loadComprobantes();
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -686,6 +1132,46 @@ function init(){
   if(mf) mf.addEventListener("click", function(e){
     if(e.target === mf) closeFornecedorModal();
   });
+
+  // ─── Módulo Comprobantes ───
+  var btnNovoC = document.getElementById("btnNovoComp");
+  if(btnNovoC) btnNovoC.addEventListener("click", function(){
+    if(!canEditComps()){ showToast("Sem permissão"); return; }
+    openCompModal(null);
+  });
+  var btnCloseC = document.getElementById("btnCloseComp");
+  if(btnCloseC) btnCloseC.addEventListener("click", closeCompModal);
+  var btnSaveC = document.getElementById("btnSaveComp");
+  if(btnSaveC) btnSaveC.addEventListener("click", saveComp);
+  var btnAnularC = document.getElementById("btnAnularComp");
+  if(btnAnularC) btnAnularC.addEventListener("click", anularComp);
+  ["compSearch","compEstadoFilter","compCentroFilter","compCategoriaFilter","compOrderBy"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("input", renderCompList);
+    if(el) el.addEventListener("change", renderCompList);
+  });
+  var mc = document.getElementById("modalComp");
+  if(mc) mc.addEventListener("click", function(e){ if(e.target === mc) closeCompModal(); });
+
+  // Nova categoria ao vuelo
+  var cfCat = document.getElementById("cfCategoria");
+  if(cfCat) cfCat.addEventListener("change", function(){
+    if(cfCat.value === "__nova__"){ cfCat.value = ""; openCatModal(); }
+  });
+  var btnCloseCat = document.getElementById("btnCloseCat");
+  if(btnCloseCat) btnCloseCat.addEventListener("click", closeCatModal);
+  var btnSaveCat = document.getElementById("btnSaveCat");
+  if(btnSaveCat) btnSaveCat.addEventListener("click", saveCategoria);
+  var mcat = document.getElementById("modalCat");
+  if(mcat) mcat.addEventListener("click", function(e){ if(e.target === mcat) closeCatModal(); });
+
+  // Modal pagamento
+  var btnClosePag = document.getElementById("btnClosePag");
+  if(btnClosePag) btnClosePag.addEventListener("click", closePagamentoModal);
+  var btnSavePag = document.getElementById("btnSavePag");
+  if(btnSavePag) btnSavePag.addEventListener("click", savePagamento);
+  var mp = document.getElementById("modalPag");
+  if(mp) mp.addEventListener("click", function(e){ if(e.target === mp) closePagamentoModal(); });
 
   // Session restore
   var savedUser = sessionStorage.getItem("nordapp_user");

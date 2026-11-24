@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=0.2.2">
+<link rel="stylesheet" href="styles.css?v=0.3.0">
 </head>
 <body>
 
@@ -201,6 +201,208 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO COMPROBANTES ═════════════════════════════════════════════ -->
+<div id="viewComprobantes" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubDespesas">← Despesas</button>
+      <div class="module-title-block">
+        <div class="module-title">🧾 Comprobantes</div>
+        <div class="module-subtitle" id="compSubtitle">—</div>
+      </div>
+    </div>
+
+    <!-- KPI mini bar -->
+    <div class="kpi-row" id="compKpis"></div>
+
+    <button class="btn-primary" id="btnNovoComp" style="width:100%;margin-bottom:10px">+ Novo comprobante</button>
+
+    <div class="filter-row">
+      <input type="text" id="compSearch" placeholder="Buscar descrição, fornecedor..." class="filter-input">
+    </div>
+    <div class="filter-row">
+      <select id="compEstadoFilter" class="filter-select">
+        <option value="">Todos estados</option>
+        <option value="pendente">Pendentes</option>
+        <option value="pago_parcial">Pago parcial</option>
+        <option value="pago">Pagos</option>
+        <option value="anulado">Anulados</option>
+      </select>
+      <select id="compCentroFilter" class="filter-select">
+        <option value="">Todos centros</option>
+        <option value="geral">Geral</option>
+        <option value="lofts">Lofts</option>
+        <option value="casa_nordestina">Casa Nordestina</option>
+        <option value="consorcio">Consórcio</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <select id="compCategoriaFilter" class="filter-select">
+        <option value="">Todas categorias DRE</option>
+      </select>
+      <select id="compOrderBy" class="filter-select">
+        <option value="competencia_desc">Competência · recente</option>
+        <option value="competencia_asc">Competência · antiga</option>
+        <option value="valor_desc">Valor · maior</option>
+        <option value="vencimento_asc">Vencimento próximo</option>
+      </select>
+    </div>
+
+    <div id="compList" class="comp-list"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- Modal Comprobante -->
+<div class="overlay" id="modalComp">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <span class="modal-title" id="compModalTitle">Novo comprobante</span>
+      <button class="btn-x" id="btnCloseComp">×</button>
+    </div>
+
+    <label>Descrição <span class="req">*</span></label>
+    <input type="text" id="cfDescricao" placeholder="Ex: Energia elétrica outubro · Enel">
+
+    <label>Fornecedor <span class="req">*</span></label>
+    <select id="cfFornecedor">
+      <option value="">Selecionar fornecedor...</option>
+    </select>
+
+    <div class="row-2">
+      <div>
+        <label>Categoria DRE <span class="req">*</span></label>
+        <select id="cfCategoria">
+          <option value="">Selecionar...</option>
+          <option value="__nova__" style="font-style:italic">+ Criar nova categoria</option>
+        </select>
+      </div>
+      <div>
+        <label>Centro de custo <span class="req">*</span></label>
+        <select id="cfCentroCusto">
+          <option value="geral">Geral</option>
+          <option value="lofts">Lofts</option>
+          <option value="casa_nordestina">Casa Nordestina</option>
+          <option value="consorcio">Consórcio</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div>
+        <label>Data competência <span class="req">*</span></label>
+        <input type="date" id="cfCompetencia">
+        <div class="field-hint">Impacto no DRE</div>
+      </div>
+      <div>
+        <label>Data vencimento</label>
+        <input type="date" id="cfVencimento">
+        <div class="field-hint">Opcional</div>
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div>
+        <label>Valor total (R$) <span class="req">*</span></label>
+        <input type="number" id="cfValor" step="0.01" min="0" placeholder="0,00">
+      </div>
+      <div>
+        <label>Meio de pagamento</label>
+        <select id="cfMeio">
+          <option value="">—</option>
+          <option value="banco_inter">Banco Inter · LG</option>
+          <option value="banco_bradesco">Banco Bradesco</option>
+          <option value="banco_itau">Banco Itaú</option>
+          <option value="cartao_corp">Cartão corporativo</option>
+          <option value="pix">Pix</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="cripto">Cripto (sócios)</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+    </div>
+
+    <label>Observações</label>
+    <textarea id="cfObs" rows="2" placeholder="Notas internas, número da NF, etc."></textarea>
+
+    <label>Anexo (PDF, imagem)</label>
+    <input type="file" id="cfAnexo" accept=".pdf,.jpg,.jpeg,.png,.webp">
+    <div class="field-hint" id="cfAnexoHint">Opcional · até 10MB</div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" id="btnAnularComp" style="display:none">Anular</button>
+      <button class="btn-primary" id="btnSaveComp">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Registrar Pagamento -->
+<div class="overlay" id="modalPag">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Registrar pagamento</span>
+      <button class="btn-x" id="btnClosePag">×</button>
+    </div>
+    <div class="pag-info" id="pagInfo"></div>
+
+    <div class="row-2">
+      <div>
+        <label>Valor pago (R$) <span class="req">*</span></label>
+        <input type="number" id="pfValor" step="0.01" min="0">
+      </div>
+      <div>
+        <label>Data pagamento <span class="req">*</span></label>
+        <input type="date" id="pfData">
+      </div>
+    </div>
+
+    <label>Meio de pagamento</label>
+    <select id="pfMeio">
+      <option value="">—</option>
+      <option value="banco_inter">Banco Inter · LG</option>
+      <option value="banco_bradesco">Banco Bradesco</option>
+      <option value="banco_itau">Banco Itaú</option>
+      <option value="cartao_corp">Cartão corporativo</option>
+      <option value="pix">Pix</option>
+      <option value="dinheiro">Dinheiro</option>
+      <option value="cripto">Cripto</option>
+    </select>
+
+    <label>Observações</label>
+    <textarea id="pfObs" rows="2" placeholder="Opcional"></textarea>
+
+    <div class="modal-footer">
+      <button class="btn-primary" id="btnSavePag">Registrar pagamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nova Categoria DRE -->
+<div class="overlay" id="modalCat">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <span class="modal-title">Nova categoria DRE</span>
+      <button class="btn-x" id="btnCloseCat">×</button>
+    </div>
+
+    <label>Nome <span class="req">*</span></label>
+    <input type="text" id="catNome" placeholder="Ex: Taxa de alvará municipal">
+
+    <label>Grupo DRE <span class="req">*</span></label>
+    <select id="catGrupo">
+      <option value="custo_operacional">Custo operacional</option>
+      <option value="despesa_admin">Despesa administrativa</option>
+      <option value="despesa_financeira">Despesa financeira</option>
+      <option value="tributos">Tributos</option>
+      <option value="nao_operacional">Não operacional</option>
+      <option value="receita">Receita</option>
+    </select>
+
+    <div class="modal-footer">
+      <button class="btn-primary" id="btnSaveCat">Criar categoria</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ VIEWS EM CONSTRUÇÃO (placeholders) ══════════════════════════════ -->
 <div id="viewEmConstrucao" class="view">
   <div class="module-header">
@@ -222,6 +424,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.2.2"></script>
+<script src="app.js?v=0.3.0"></script>
 </body>
 </html>
