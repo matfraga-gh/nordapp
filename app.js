@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.4.1 · Pagos + Despesa rápida (Bandeja + Realizados + Conta) · 2026-11-24");
+console.log("NORDAPP v0.5.1 · DRE + Receitas de reservas (checkin / canal / adic / devol) (Bandeja + Realizados + Conta) · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.4.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.5.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -348,6 +348,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "comprobantes"){ goToComprobantes(); return; }
   if(moduleId === "categorias"){ goToCategorias(); return; }
   if(moduleId === "pagos"){ goToPagos(); return; }
+  if(moduleId === "painel_resultados"){ goToDRE(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -1765,6 +1766,319 @@ async function saveRapida(){
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO PAINEL DE RESULTADOS (DRE)
+// ═════════════════════════════════════════════════════════════════════
+var _dreMes = null; // {y, m}  m é 0-indexed
+var _dreReservasCache = null;
+var _dreReservasSchema = null; // {campoData, campoValor, campoStatus}
+
+function dreFirstDay(y, m){ return new Date(y, m, 1).toISOString().slice(0,10); }
+function dreLastDay(y, m){ return new Date(y, m+1, 0).toISOString().slice(0,10); }
+function dreMesLabel(y, m){
+  return new Date(y, m, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+}
+
+function dreGoMes(delta){
+  var y = _dreMes.y, m = _dreMes.m + delta;
+  while(m < 0){ y--; m += 12; }
+  while(m > 11){ y++; m -= 12; }
+  _dreMes = { y: y, m: m };
+  renderDRE();
+}
+
+// Schema reservas hardcodado (confirmado 2026-11-24)
+// Mês de competência = mês do checkin
+async function loadReservasDRE(){
+  var data = await api("reservas?select=id,checkin,canal,total,adic_valor,svc_cozinheira,svc_early_checkin,svc_late_checkout,svc_outros_valor,devolucao,status&limit=5000");
+  return { ok: !!data, rows: data || [] };
+}
+
+function reservaReceitaPrincipal(r){
+  return Number(r.total) || 0;
+}
+function reservaReceitaAdicional(r){
+  return (Number(r.adic_valor)||0)
+       + (Number(r.svc_cozinheira)||0)
+       + (Number(r.svc_early_checkin)||0)
+       + (Number(r.svc_late_checkout)||0)
+       + (Number(r.svc_outros_valor)||0);
+}
+function reservaDevolucao(r){
+  return Number(r.devolucao) || 0;
+}
+
+function filtrarReservasNoMes(rows, y, m){
+  var ini = dreFirstDay(y, m);
+  var fim = dreLastDay(y, m);
+  return rows.filter(function(r){
+    if(!r.checkin) return false;
+    var ds = String(r.checkin).slice(0, 10);
+    if(ds < ini || ds > fim) return false;
+    var st = String(r.status || "").toLowerCase();
+    if(st === 'cancelada' || st === 'cancelado' || st === 'canceled' || st === 'cancel') return false;
+    return true;
+  });
+}
+
+// Agrupa despesas do mês (data_competencia) por categoria e grupo
+function agruparDespesasMes(y, m, incluirConsorcio){
+  var ini = dreFirstDay(y, m);
+  var fim = dreLastDay(y, m);
+  var list = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.data_competencia) return false;
+    if(c.data_competencia < ini || c.data_competencia > fim) return false;
+    if(!incluirConsorcio && c.centro_custo === 'consorcio') return false;
+    return true;
+  });
+
+  // Map: grupo -> categoria_nome -> soma
+  var grupos = {};
+  list.forEach(function(c){
+    var catNome = c.categorias_dre ? c.categorias_dre.nome : "Sem categoria";
+    var grupo = c.categorias_dre ? c.categorias_dre.grupo : "nao_operacional";
+    if(!grupos[grupo]) grupos[grupo] = {};
+    if(!grupos[grupo][catNome]) grupos[grupo][catNome] = 0;
+    grupos[grupo][catNome] += Number(c.valor_total) || 0;
+  });
+  return grupos;
+}
+
+function dreRenderSection(titulo, dados, totalColor){
+  if(!dados || Object.keys(dados).length === 0) return "";
+  var total = 0;
+  var lines = Object.keys(dados).sort(function(a,b){ return dados[b] - dados[a]; }).map(function(k){
+    total += dados[k];
+    return '<div class="dre-line">' +
+             '<div class="dre-line-label">'+escapeHtml(k)+'</div>' +
+             '<div class="dre-line-valor">'+fmtBRL(dados[k])+'</div>' +
+           '</div>';
+  }).join("");
+  return '<div class="dre-section">' +
+           '<div class="dre-section-header">' +
+             '<div class="dre-section-title">'+titulo+'</div>' +
+             '<div class="dre-section-total">'+fmtBRL(total)+'</div>' +
+           '</div>' +
+           lines +
+         '</div>';
+}
+
+function dreTotalCard(label, valor, baseMargem, cls){
+  var margemHtml = "";
+  if(baseMargem && baseMargem !== 0){
+    var m = (valor / baseMargem) * 100;
+    margemHtml = '<div class="dre-total-margem">margem '+m.toFixed(1)+'%</div>';
+  }
+  return '<div class="dre-total-card '+(cls||'')+'">' +
+           '<div>' +
+             '<div class="dre-total-label">'+label+'</div>' +
+             margemHtml +
+           '</div>' +
+           '<div class="dre-total-valor">'+fmtBRL(valor)+'</div>' +
+         '</div>';
+}
+
+async function renderDRE(){
+  if(!_dreMes){
+    var hoje = new Date();
+    _dreMes = { y: hoje.getFullYear(), m: hoje.getMonth() };
+  }
+  var incluirConsorcio = document.getElementById("dreIncluirConsorcio").checked;
+  document.getElementById("dreMesAtual").textContent = dreMesLabel(_dreMes.y, _dreMes.m);
+  document.getElementById("dreSubtitle").textContent = incluirConsorcio ? "Consolidado + Consórcio · Competência" : "Nordestina (sem Consórcio) · Competência";
+
+  var el = document.getElementById("dreBody");
+  el.innerHTML = '<div class="loading">Carregando...</div>';
+
+  // Despesas (já em cache)
+  if(_allComps.length === 0) await loadComprobantes();
+  if(_allCategorias.length === 0) await loadCategorias();
+
+  // Reservas
+  var reservasResult = await loadReservasDRE();
+
+  var y = _dreMes.y, m = _dreMes.m;
+  var grupos = agruparDespesasMes(y, m, incluirConsorcio);
+
+  // Receitas de reservas (mês de competência = mês do checkin)
+  var receitasHospedagem = 0;
+  var receitasAdicionais = 0;
+  var devolucoes = 0;
+  var receitasCanalBreakdown = {};
+  var warningHtml = "";
+
+  if(!reservasResult.ok){
+    warningHtml = '<div class="dre-warning">⚠ Não consegui ler a tabela <b>reservas</b>. Verificar RLS / permissões.</div>';
+  } else {
+    var rsvMes = filtrarReservasNoMes(reservasResult.rows, y, m);
+    rsvMes.forEach(function(r){
+      var vp = reservaReceitaPrincipal(r);
+      var va = reservaReceitaAdicional(r);
+      var vd = reservaDevolucao(r);
+      receitasHospedagem += vp;
+      receitasAdicionais += va;
+      devolucoes += vd;
+      var c = (r.canal || "Direta").trim() || "Direta";
+      receitasCanalBreakdown[c] = (receitasCanalBreakdown[c] || 0) + vp;
+    });
+  }
+  var receitaReservas = receitasHospedagem + receitasAdicionais - devolucoes;
+
+  // Sumar por grupo
+  function somarGrupo(g){ var s = 0; if(grupos[g]) Object.keys(grupos[g]).forEach(function(k){ s += grupos[g][k]; }); return s; }
+
+  var custoOp   = somarGrupo('custo_operacional');
+  var despAdm   = somarGrupo('despesa_admin');
+  var tributos  = somarGrupo('tributos');
+  var despFin   = somarGrupo('despesa_financeira');
+  var naoOp     = somarGrupo('nao_operacional');
+  var receitasExtra = somarGrupo('receita'); // caso tenham classificado receitas em comprobantes
+
+  var receitasTotal = receitaReservas + receitasExtra;
+  var resultadoOp   = receitasTotal - custoOp;
+  var ebitda        = resultadoOp - despAdm - tributos;
+  var resultadoLiq  = ebitda - despFin - naoOp;
+
+  var html = warningHtml;
+
+  // RECEITAS
+  if(receitasTotal > 0){
+    html += '<div class="dre-section">' +
+              '<div class="dre-section-header">' +
+                '<div class="dre-section-title">Receitas</div>' +
+                '<div class="dre-section-total">'+fmtBRL(receitasTotal)+'</div>' +
+              '</div>';
+
+    // Hospedagem (quebra por canal)
+    if(receitasHospedagem > 0){
+      html += '<div class="dre-line">' +
+                '<div class="dre-line-label"><b>Hospedagem</b></div>' +
+                '<div class="dre-line-valor">'+fmtBRL(receitasHospedagem)+'</div>' +
+              '</div>';
+      Object.keys(receitasCanalBreakdown).sort(function(a,b){ return receitasCanalBreakdown[b] - receitasCanalBreakdown[a]; }).forEach(function(c){
+        html += '<div class="dre-line sub">' +
+                  '<div class="dre-line-label">· '+escapeHtml(c)+'</div>' +
+                  '<div class="dre-line-valor">'+fmtBRL(receitasCanalBreakdown[c])+'</div>' +
+                '</div>';
+      });
+    }
+    if(receitasAdicionais > 0){
+      html += '<div class="dre-line">' +
+                '<div class="dre-line-label">Serviços adicionais (café, early CI, etc)</div>' +
+                '<div class="dre-line-valor">'+fmtBRL(receitasAdicionais)+'</div>' +
+              '</div>';
+    }
+    if(devolucoes > 0){
+      html += '<div class="dre-line">' +
+                '<div class="dre-line-label">(−) Devoluções</div>' +
+                '<div class="dre-line-valor" style="color:#e8b0b0">−'+fmtBRL(devolucoes)+'</div>' +
+              '</div>';
+    }
+    if(grupos.receita){
+      Object.keys(grupos.receita).forEach(function(k){
+        html += '<div class="dre-line">' +
+                  '<div class="dre-line-label">'+escapeHtml(k)+' <span style="opacity:0.5;font-size:11px">(comprobante)</span></div>' +
+                  '<div class="dre-line-valor">'+fmtBRL(grupos.receita[k])+'</div>' +
+                '</div>';
+      });
+    }
+    html += '</div>';
+  } else if(reservasResult.ok){
+    html += '<div class="dre-warning">Nenhuma receita em '+dreMesLabel(y,m)+'. Confira se há reservas com check-in neste mês (status ≠ cancelada).</div>';
+  }
+
+  // CUSTO OP
+  html += dreRenderSection('(−) Custo operacional', grupos.custo_operacional);
+  html += dreTotalCard('Resultado operacional bruto', resultadoOp, receitasTotal, resultadoOp >= 0 ? 'positivo' : 'negativo');
+
+  // ADM + TRIBUTOS
+  html += dreRenderSection('(−) Despesas administrativas', grupos.despesa_admin);
+  html += dreRenderSection('(−) Tributos', grupos.tributos);
+  html += dreTotalCard('EBITDA', ebitda, receitasTotal, ebitda >= 0 ? 'positivo' : 'negativo');
+
+  // FIN + NAO OP
+  html += dreRenderSection('(−) Despesas financeiras', grupos.despesa_financeira);
+  html += dreRenderSection('(−) Não operacional', grupos.nao_operacional);
+  html += dreTotalCard('Resultado líquido', resultadoLiq, receitasTotal, resultadoLiq >= 0 ? 'positivo' : 'negativo');
+
+  if(html === warningHtml || html === ""){
+    html += '<div class="empty"><div class="empty-icon">📊</div>Sem movimento no mês.</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+async function exportDREExcel(){
+  if(typeof XLSX === 'undefined'){ showToast("XLSX não carregou"); return; }
+  if(!_dreMes){ showToast("Selecione um mês"); return; }
+  var incluirConsorcio = document.getElementById("dreIncluirConsorcio").checked;
+  var y = _dreMes.y, m = _dreMes.m;
+  var grupos = agruparDespesasMes(y, m, incluirConsorcio);
+
+  // Receitas de reservas
+  var rsvRes = await loadReservasDRE();
+  var rhosp = 0, radd = 0, rdev = 0, canalMap = {};
+  if(rsvRes.ok){
+    var rsvMes = filtrarReservasNoMes(rsvRes.rows, y, m);
+    rsvMes.forEach(function(r){
+      rhosp += reservaReceitaPrincipal(r);
+      radd  += reservaReceitaAdicional(r);
+      rdev  += reservaDevolucao(r);
+      var c = (r.canal || "Direta").trim() || "Direta";
+      canalMap[c] = (canalMap[c] || 0) + reservaReceitaPrincipal(r);
+    });
+  }
+
+  var rows = [];
+  function addGrupo(label, g){
+    if(!g) return;
+    rows.push({ Linha: label, Valor: null });
+    Object.keys(g).sort(function(a,b){ return g[b]-g[a]; }).forEach(function(k){
+      rows.push({ Linha: "  " + k, Valor: g[k] });
+    });
+    var s = 0; Object.keys(g).forEach(function(k){ s += g[k]; });
+    rows.push({ Linha: label + " · Total", Valor: s });
+    rows.push({});
+  }
+  // Receitas
+  rows.push({ Linha: "RECEITAS", Valor: null });
+  rows.push({ Linha: "  Hospedagem", Valor: rhosp });
+  Object.keys(canalMap).sort(function(a,b){ return canalMap[b]-canalMap[a]; }).forEach(function(c){
+    rows.push({ Linha: "    · " + c, Valor: canalMap[c] });
+  });
+  if(radd > 0) rows.push({ Linha: "  Serviços adicionais", Valor: radd });
+  if(rdev > 0) rows.push({ Linha: "  (−) Devoluções", Valor: -rdev });
+  if(grupos.receita){ Object.keys(grupos.receita).forEach(function(k){ rows.push({ Linha: "  " + k + " (comprobante)", Valor: grupos.receita[k] }); }); }
+  var recExtra = 0; if(grupos.receita) Object.keys(grupos.receita).forEach(function(k){ recExtra += grupos.receita[k]; });
+  rows.push({ Linha: "RECEITAS · Total", Valor: rhosp + radd - rdev + recExtra });
+  rows.push({});
+
+  addGrupo("CUSTO OPERACIONAL", grupos.custo_operacional);
+  addGrupo("DESPESAS ADMINISTRATIVAS", grupos.despesa_admin);
+  addGrupo("TRIBUTOS", grupos.tributos);
+  addGrupo("DESPESAS FINANCEIRAS", grupos.despesa_financeira);
+  addGrupo("NÃO OPERACIONAL", grupos.nao_operacional);
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:40},{wch:16}];
+  var sheetName = "DRE_" + y + "_" + String(m+1).padStart(2,"0");
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, "NORDAPP_" + sheetName + ".xlsx");
+  showToast("Excel baixado ✓");
+}
+
+async function goToDRE(){
+  showView("viewDRE");
+  if(!_dreMes){
+    var hoje = new Date();
+    _dreMes = { y: hoje.getFullYear(), m: hoje.getMonth() };
+  }
+  if(_allComps.length === 0) await loadComprobantes();
+  renderDRE();
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -1885,6 +2199,16 @@ function init(){
   });
   var btnExpP = document.getElementById("btnExportPagamentos");
   if(btnExpP) btnExpP.addEventListener("click", exportPagamentosExcel);
+
+  // ─── DRE ───
+  var btnPrev = document.getElementById("dreMesPrev");
+  if(btnPrev) btnPrev.addEventListener("click", function(){ dreGoMes(-1); });
+  var btnNext = document.getElementById("dreMesNext");
+  if(btnNext) btnNext.addEventListener("click", function(){ dreGoMes(1); });
+  var chkCons = document.getElementById("dreIncluirConsorcio");
+  if(chkCons) chkCons.addEventListener("change", renderDRE);
+  var btnExpDRE = document.getElementById("btnExportDRE");
+  if(btnExpDRE) btnExpDRE.addEventListener("click", exportDREExcel);
 
   // Despesa rápida
   var btnRap = document.getElementById("btnDespesaRapida");
