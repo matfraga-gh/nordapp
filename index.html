@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1a4a6b">
+<title>NORDAPP · Nordestina</title>
+<link rel="stylesheet" href="styles.css?v=0.1.0">
+</head>
+<body>
+
+<!-- ══ LOGIN ═══════════════════════════════════════════════════════════ -->
+<div id="viewLogin" class="view active">
+  <div class="login-card">
+    <div class="login-logo">
+      NORD<span class="app">APP</span>
+    </div>
+    <div class="login-sub">Gestão integrada · Hotel</div>
+    <div class="login-field">
+      <label>Usuário</label>
+      <input type="text" id="loginUser" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Senha</label>
+      <input type="password" id="loginPass" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="btnLogin">Entrar</button>
+    <div class="login-error" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ══ PAINEL PRINCIPAL (Nivel 1) ══════════════════════════════════════ -->
+<div id="viewPainel" class="view">
+  <div class="painel-header">
+    <div class="painel-brand">NORD<span class="app">APP</span></div>
+    <div class="painel-meta" id="painelDate"></div>
+    <div class="painel-greet">
+      <span id="painelGreet"></span>
+      <span class="painel-role" id="painelRole"></span>
+    </div>
+  </div>
+  <div class="content">
+    <div class="painel-grid" id="painelGrid"></div>
+    <button class="btn-logout" id="btnLogout">Sair da conta</button>
+    <div class="build-stamp" id="buildStamp"></div>
+  </div>
+</div>
+
+<!-- ══ HUB VENDAS (Nivel 2) ════════════════════════════════════════════ -->
+<div id="viewHubVendas" class="view">
+  <div class="module-header">
+    <button class="btn-back" data-nav="painel">← Painel</button>
+    <div class="module-title-block">
+      <div class="module-title">📅 Vendas</div>
+      <div class="module-subtitle">Reservas e hóspedes</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="painel-grid" id="hubVendasGrid"></div>
+  </div>
+</div>
+
+<!-- ══ HUB DESPESAS ════════════════════════════════════════════════════ -->
+<div id="viewHubDespesas" class="view">
+  <div class="module-header">
+    <button class="btn-back" data-nav="painel">← Painel</button>
+    <div class="module-title-block">
+      <div class="module-title">💸 Despesas</div>
+      <div class="module-subtitle">Compras, pagos, sócios</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="painel-grid" id="hubDespesasGrid"></div>
+  </div>
+</div>
+
+<!-- ══ HUB REPORTES ════════════════════════════════════════════════════ -->
+<div id="viewHubReportes" class="view">
+  <div class="module-header">
+    <button class="btn-back" data-nav="painel">← Painel</button>
+    <div class="module-title-block">
+      <div class="module-title">📊 Reportes</div>
+      <div class="module-subtitle">Resultados e análise</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="painel-grid" id="hubReportesGrid"></div>
+  </div>
+</div>
+
+<!-- ══ HUB ADMIN ═══════════════════════════════════════════════════════ -->
+<div id="viewHubAdmin" class="view">
+  <div class="module-header">
+    <button class="btn-back" data-nav="painel">← Painel</button>
+    <div class="module-title-block">
+      <div class="module-title">⚙ Admin</div>
+      <div class="module-subtitle">Usuários, config, ferramentas</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="painel-grid" id="hubAdminGrid"></div>
+  </div>
+</div>
+
+<!-- ══ VIEWS EM CONSTRUÇÃO (placeholders) ══════════════════════════════ -->
+<div id="viewEmConstrucao" class="view">
+  <div class="module-header">
+    <button class="btn-back" id="emConstrucaoBack">← Voltar</button>
+    <div class="module-title-block">
+      <div class="module-title" id="emConstrucaoTitle">Módulo</div>
+      <div class="module-subtitle">Em desenvolvimento</div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="em-construcao">
+      <div class="em-construcao-icon">🚧</div>
+      <div class="em-construcao-title">Em construção</div>
+      <div class="em-construcao-sub">Este módulo faz parte das próximas fases de implementação.</div>
+      <div class="em-construcao-sub" style="margin-top:10px">Volte em alguns dias.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js?v=0.1.0"></script>
+</body>
+</html>

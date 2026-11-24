@@ -1,0 +1,304 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   NORDAPP · styles.css v0.1
+   Paleta ocean + sand · Cormorant Garamond + Jost
+   Siguindo patrão AZUCAPP: views independentes, ações inline
+   ═════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Jost:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Paleta */
+  --ocean: #1a4a6b;
+  --ocean-mid: #2e6e9e;
+  --ocean-light: #d6e5ef;
+  --sand: #f4ebd7;
+  --sand-mid: #e8d9c0;
+  --sand-dark: #c9b48a;
+  --white: #ffffff;
+  --text: #1a2e3b;
+  --text-soft: #5a7a8a;
+  --green: #5b8c6b;
+  --green-bg: #e3edd9;
+  --yellow: #c9a860;
+  --yellow-bg: #faf2d9;
+  --red: #c47a7a;
+  --red-bg: #f5dede;
+
+  /* Tipografia */
+  --font-serif: 'Cormorant Garamond', serif;
+  --font-sans: 'Jost', sans-serif;
+
+  /* Spacings */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--sand);
+  font-family: var(--font-sans);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a { color: var(--ocean); text-decoration: none; }
+
+/* ── VIEWS ─────────────────────────────────────────────────────────── */
+.view { display: none; min-height: 100vh; }
+.view.active { display: block; }
+
+.content {
+  padding: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 80px;
+}
+@media (min-width: 768px) { .content { max-width: 720px; } }
+
+/* ── LOGIN ─────────────────────────────────────────────────────────── */
+#viewLogin {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, var(--ocean), var(--ocean-mid));
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+#viewLogin:not(.active) { display: none; }
+.login-card {
+  background: var(--sand);
+  padding: 32px 24px;
+  border-radius: var(--radius-lg);
+  width: 100%; max-width: 360px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+  text-align: center;
+}
+.login-logo {
+  font-family: var(--font-serif);
+  font-size: 34px; font-weight: 700;
+  letter-spacing: 5px;
+  color: var(--ocean);
+}
+.login-logo .app {
+  font-family: var(--font-sans);
+  font-size: 15px; letter-spacing: 3px;
+  color: var(--sand-dark);
+  display: block; margin-top: 4px;
+}
+.login-sub { font-size: 11px; color: var(--text-soft); letter-spacing: 2px; margin: 14px 0 20px; text-transform: uppercase; }
+.login-field { text-align: left; margin-bottom: 14px; }
+.login-field label { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--text-soft); margin-bottom: 4px; text-transform: uppercase; font-weight: 600; }
+.login-field input {
+  width: 100%; padding: 12px 14px;
+  border-radius: var(--radius-md); border: 1.5px solid var(--sand-mid);
+  background: var(--white); font-size: 14px; color: var(--text);
+  font-family: var(--font-sans); outline: none;
+}
+.login-field input:focus { border-color: var(--ocean); }
+.login-btn {
+  width: 100%; padding: 13px; margin-top: 6px;
+  background: var(--ocean); color: var(--white); border: none;
+  border-radius: var(--radius-md); font-size: 14px; font-weight: 600;
+  cursor: pointer; font-family: var(--font-sans);
+}
+.login-btn:hover { background: var(--ocean-mid); }
+.login-error { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
+
+/* ── PAINEL HEADER ─────────────────────────────────────────────────── */
+.painel-header {
+  background: var(--ocean);
+  padding: 20px 16px 24px;
+  text-align: center;
+  color: var(--white);
+}
+.painel-brand {
+  font-family: var(--font-serif);
+  font-size: 28px; font-weight: 700;
+  letter-spacing: 5px;
+}
+.painel-brand .app {
+  font-family: var(--font-sans);
+  font-size: 12px; letter-spacing: 3px;
+  color: var(--sand-dark);
+  display: block; margin-top: 2px;
+}
+.painel-meta {
+  font-size: 11px; color: rgba(255,255,255,.7);
+  letter-spacing: 1px; margin-top: 10px;
+}
+.painel-greet {
+  font-size: 12px; color: var(--sand-dark);
+  margin-top: 4px;
+}
+.painel-role {
+  display: inline-block;
+  background: rgba(255,255,255,.15);
+  padding: 2px 10px; border-radius: 10px;
+  font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-left: 6px;
+}
+
+/* ── PAINEL CARDS (nivel 1 y 2) ────────────────────────────────────── */
+.painel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 20px;
+}
+.painel-tile {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  box-shadow: 0 2px 10px rgba(26,74,107,0.06);
+}
+.painel-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--sand-dark);
+  box-shadow: 0 6px 20px rgba(26,74,107,0.12);
+}
+.painel-tile-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+.painel-tile-title {
+  font-family: var(--font-serif);
+  font-size: 18px; font-weight: 700;
+  color: var(--ocean);
+  margin-bottom: 4px;
+}
+.painel-tile-sub {
+  font-size: 11px; color: var(--text-soft);
+  letter-spacing: 0.5px;
+}
+
+/* ── MÓDULO HEADER (view-level, patron AZUCAPP) ────────────────────── */
+.module-header {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--ocean);
+  padding: 14px 16px;
+  color: var(--white);
+}
+.btn-back {
+  background: rgba(255,255,255,.1);
+  color: var(--white);
+  border: 1px solid rgba(255,255,255,.25);
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.btn-back:hover { background: rgba(255,255,255,.2); }
+.module-title-block { flex: 1; }
+.module-title {
+  font-family: var(--font-serif);
+  font-size: 18px; font-weight: 700;
+  color: var(--white);
+}
+.module-subtitle {
+  font-size: 11px;
+  color: rgba(255,255,255,.65);
+  letter-spacing: 0.5px;
+}
+
+/* ── BOTÕES ────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--ocean);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 13px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-primary:hover { background: var(--ocean-mid); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  background: var(--sand-mid);
+  color: var(--text);
+  border: 1.5px solid var(--sand-dark);
+  border-radius: var(--radius-md);
+  padding: 11px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-secondary:hover { background: var(--sand-dark); color: var(--white); }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--sand-dark);
+  color: var(--text-soft);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.btn-ghost:hover { background: var(--sand-mid); }
+
+.btn-logout {
+  display: block; width: 100%;
+  max-width: 300px; margin: 24px auto 0;
+  padding: 10px;
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,.3);
+  border-radius: var(--radius-md);
+  color: rgba(255,255,255,.75);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-logout:hover { background: rgba(255,255,255,.1); }
+
+/* ── PLACEHOLDER (views em construção) ─────────────────────────────── */
+.em-construcao {
+  background: var(--white);
+  border: 2px dashed var(--sand-dark);
+  border-radius: var(--radius-lg);
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-soft);
+  margin: 20px 0;
+}
+.em-construcao-icon { font-size: 40px; margin-bottom: 12px; }
+.em-construcao-title { font-family: var(--font-serif); font-size: 18px; color: var(--ocean); margin-bottom: 6px; }
+.em-construcao-sub { font-size: 12px; }
+
+/* ── TOAST ─────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 20px; left: 50%;
+  transform: translateX(-50%) translateY(120%);
+  background: var(--ocean);
+  color: var(--white);
+  padding: 12px 22px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  font-size: 13px;
+  max-width: 85%;
+  transition: transform 0.3s;
+  z-index: 1000;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ── BUILD STAMP footer ────────────────────────────────────────────── */
+.build-stamp {
+  text-align: center;
+  font-size: 9px;
+  color: var(--text-soft);
+  letter-spacing: 1px;
+  margin-top: 20px;
+  opacity: 0.6;
+}
