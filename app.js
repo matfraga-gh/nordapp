@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.6.1 · Ingresos fix checkout + apto · 2026-11-24");
+console.log("NORDAPP v0.6.2 · Ingresos 9 unidades + app_config checkout + apto · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.2 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -2099,7 +2099,7 @@ async function goToDRE(){
 // ═════════════════════════════════════════════════════════════════════
 // MÓDULO REPORTE DE INGRESOS
 // ═════════════════════════════════════════════════════════════════════
-var UNIDADES_TOTAL = 10; // 9 lofts + Casa Nordestina
+var UNIDADES_TOTAL = 9; // 8 lofts ativos + Casa Nordestina (editável · ler de app_config no futuro)
 var _ingReservas = null;
 
 function getIngPeriodo(){
@@ -2320,8 +2320,20 @@ function exportIngresosExcel(){
   showToast("Excel baixado ✓");
 }
 
+async function carregarUnidadesConfig(){
+  // Lê de app_config?chave=eq.unidades_ativas (opcional)
+  try {
+    var r = await api("app_config?chave=eq.unidades_ativas&select=valor");
+    if(r && r.length > 0 && r[0].valor){
+      var n = parseInt(r[0].valor, 10);
+      if(n > 0) UNIDADES_TOTAL = n;
+    }
+  } catch(e){ /* usa default */ }
+}
+
 async function goToIngresos(){
   showView("viewIngresos");
+  await carregarUnidadesConfig();
   if(!document.getElementById("ingDataIni").value){
     aplicarIngPeriodoPreset("mes_atual");
   } else {
