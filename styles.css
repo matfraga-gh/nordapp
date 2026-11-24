@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   NORDAPP · styles.css v0.1
+   NORDAPP · styles.css v0.1.2
    Paleta ocean + sand · Cormorant Garamond + Jost
    Siguindo patrão AZUCAPP: views independentes, ações inline
    ═════════════════════════════════════════════════════════════════════ */
@@ -77,15 +77,10 @@ a { color: var(--ocean); text-decoration: none; }
 }
 .login-logo {
   font-family: var(--font-serif);
-  font-size: 34px; font-weight: 700;
-  letter-spacing: 5px;
+  font-size: 36px; font-weight: 700;
+  letter-spacing: 6px;
   color: var(--ocean);
-}
-.login-logo .app {
-  font-family: var(--font-sans);
-  font-size: 15px; letter-spacing: 3px;
-  color: var(--sand-dark);
-  display: block; margin-top: 4px;
+  line-height: 1;
 }
 .login-sub { font-size: 11px; color: var(--text-soft); letter-spacing: 2px; margin: 14px 0 20px; text-transform: uppercase; }
 .login-field { text-align: left; margin-bottom: 14px; }
@@ -106,39 +101,77 @@ a { color: var(--ocean); text-decoration: none; }
 .login-btn:hover { background: var(--ocean-mid); }
 .login-error { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
 
-/* ── PAINEL HEADER ─────────────────────────────────────────────────── */
-.painel-header {
-  background: var(--ocean);
-  padding: 20px 16px 24px;
+/* ── PAINEL BRAND + GREETING + USER PILL + DATETIME ──────────────── */
+.brand-block {
   text-align: center;
-  color: var(--white);
+  padding: 28px 0 10px;
 }
 .painel-brand {
   font-family: var(--font-serif);
-  font-size: 28px; font-weight: 700;
-  letter-spacing: 5px;
+  font-size: 44px; font-weight: 700;
+  letter-spacing: 7px;
+  color: var(--ocean);
+  line-height: 1;
 }
-.painel-brand .app {
+.painel-tagline {
+  font-size: 11px; color: var(--sand-dark);
+  letter-spacing: 3px;
+  margin-top: 6px;
+}
+
+.greeting {
+  text-align: center;
+  margin: 20px 0 14px;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ocean);
+}
+.greeting-emoji { margin-left: 8px; }
+
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--white);
+  border: 1.5px solid var(--sand-mid);
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  margin: 0 0 14px;
+  box-shadow: 0 2px 8px rgba(26,74,107,0.06);
+}
+.user-pill-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--ocean);
+  color: var(--white);
+  display: flex; align-items: center; justify-content: center;
   font-family: var(--font-sans);
-  font-size: 12px; letter-spacing: 3px;
-  color: var(--sand-dark);
-  display: block; margin-top: 2px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
 }
-.painel-meta {
-  font-size: 11px; color: rgba(255,255,255,.7);
-  letter-spacing: 1px; margin-top: 10px;
+.user-pill-info { flex: 1; min-width: 0; }
+.user-pill-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
 }
-.painel-greet {
-  font-size: 12px; color: var(--sand-dark);
-  margin-top: 4px;
-}
-.painel-role {
-  display: inline-block;
-  background: rgba(255,255,255,.15);
-  padding: 2px 10px; border-radius: 10px;
-  font-size: 10px; letter-spacing: 1px;
+.user-pill-role {
+  font-size: 10px;
+  color: var(--text-soft);
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  margin-left: 6px;
+  margin-top: 2px;
+}
+
+.datetime {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-soft);
+  letter-spacing: 1px;
+  margin: 8px 0 20px;
 }
 
 /* ── PAINEL CARDS (nivel 1 y 2) ────────────────────────────────────── */

@@ -3,7 +3,7 @@
 Nova versão da app de gestão da Pousada Nordestina.
 Rodará em paralelo à app atual (`nordestina-app`) até substituí-la por completo.
 
-**Versão atual:** v0.1.0 · Fase 1 setup
+**Versão atual:** v0.1.2 · Fase 1 setup (brand junto, "Lofts")
 **Deploy:** https://matfraga-gh.github.io/nordapp/
 **Documento de arquitetura:** `../nordestina-app/outputs/NORDAPP_arquitectura_v1.md`
 

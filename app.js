@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.1.0 · Fase 1 setup · 2026-11-23");
+console.log("NORDAPP v0.1.2 · greeting + avatar + datetime · 2026-11-23");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -139,19 +139,45 @@ function doLogout(){
 }
 
 // ── PAINEL ────────────────────────────────────────────────────────────
+function getGreeting(hour){
+  if(hour < 6) return { text: "Boa madrugada", emoji: "🌙" };
+  if(hour < 12) return { text: "Bom dia", emoji: "☀" };
+  if(hour < 18) return { text: "Boa tarde", emoji: "🌤" };
+  return { text: "Boa noite", emoji: "🌙" };
+}
+
+function getInitials(nome){
+  if(!nome) return "?";
+  var parts = String(nome).trim().split(/\s+/);
+  if(parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+}
+
+function formatDatePtBR(d){
+  var days = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  var months = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  var hh = String(d.getHours()).padStart(2,"0");
+  var mm = String(d.getMinutes()).padStart(2,"0");
+  return days[d.getDay()] + ", " + d.getDate() + " " + months[d.getMonth()] + " · " + hh + ":" + mm;
+}
+
 function updatePainelHeader(){
   var now = new Date();
-  var days = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
-  var months = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  var hh = String(now.getHours()).padStart(2,"0");
-  var mm = String(now.getMinutes()).padStart(2,"0");
-  document.getElementById("painelDate").textContent =
-    days[now.getDay()] + ", " + now.getDate() + " " + months[now.getMonth()] + " " + now.getFullYear() + " · " + hh + ":" + mm;
+  // Datetime compacto
+  document.getElementById("painelDate").textContent = formatDatePtBR(now);
+  // Greeting según hora
+  var g = getGreeting(now.getHours());
+  var firstName = currentUser ? String(currentUser.nome).split(/\s+/)[0] : "";
+  document.getElementById("greetingText").textContent = g.text + (firstName ? ", " + firstName : "");
+  document.getElementById("greetingEmoji").textContent = g.emoji;
+  // User pill
   if(currentUser){
-    document.getElementById("painelGreet").textContent = "Olá, " + currentUser.nome;
-    document.getElementById("painelRole").textContent = ROLE_LABELS[currentRole] || currentRole;
+    document.getElementById("userPillAvatar").textContent = getInitials(currentUser.nome);
+    document.getElementById("userPillName").textContent = currentUser.nome;
+    document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.1.0 · build 2026-11-23";
+  // Build stamp
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.1.2 · build 2026-11-23";
 }
 
 function renderPainelGrid(){

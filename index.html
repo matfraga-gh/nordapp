@@ -5,17 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
-<link rel="stylesheet" href="styles.css?v=0.1.0">
+<link rel="stylesheet" href="styles.css?v=0.1.2">
 </head>
 <body>
 
 <!-- ══ LOGIN ═══════════════════════════════════════════════════════════ -->
 <div id="viewLogin" class="view active">
   <div class="login-card">
-    <div class="login-logo">
-      NORD<span class="app">APP</span>
-    </div>
-    <div class="login-sub">Gestão integrada · Hotel</div>
+    <div class="login-logo">NORDAPP</div>
+    <div class="login-sub">Gestão integrada · Lofts</div>
     <div class="login-field">
       <label>Usuário</label>
       <input type="text" id="loginUser" autocomplete="username">
@@ -31,16 +29,29 @@
 
 <!-- ══ PAINEL PRINCIPAL (Nivel 1) ══════════════════════════════════════ -->
 <div id="viewPainel" class="view">
-  <div class="painel-header">
-    <div class="painel-brand">NORD<span class="app">APP</span></div>
-    <div class="painel-meta" id="painelDate"></div>
-    <div class="painel-greet">
-      <span id="painelGreet"></span>
-      <span class="painel-role" id="painelRole"></span>
-    </div>
-  </div>
   <div class="content">
+    <div class="brand-block">
+      <div class="painel-brand">NORDAPP</div>
+      <div class="painel-tagline">GESTÃO INTEGRADA · LOFTS</div>
+    </div>
+
+    <div class="greeting">
+      <span class="greeting-text" id="greetingText">Olá</span>
+      <span class="greeting-emoji" id="greetingEmoji">👋</span>
+    </div>
+
+    <div class="user-pill" id="userPill">
+      <div class="user-pill-avatar" id="userPillAvatar">—</div>
+      <div class="user-pill-info">
+        <div class="user-pill-name" id="userPillName">—</div>
+        <div class="user-pill-role" id="userPillRole">—</div>
+      </div>
+    </div>
+
+    <div class="datetime" id="painelDate">—</div>
+
     <div class="painel-grid" id="painelGrid"></div>
+
     <button class="btn-logout" id="btnLogout">Sair da conta</button>
     <div class="build-stamp" id="buildStamp"></div>
   </div>
@@ -123,6 +134,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.1.0"></script>
+<script src="app.js?v=0.1.2"></script>
 </body>
 </html>
