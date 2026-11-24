@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.1.2 · greeting + avatar + datetime · 2026-11-23");
+console.log("NORDAPP v0.1.3 · greeting + avatar + datetime · 2026-11-23");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -177,7 +177,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.1.2 · build 2026-11-23";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.1.3 · build 2026-11-23";
 }
 
 function renderPainelGrid(){
