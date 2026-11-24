@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.3.1 · Período + layout vertical + Categorias CRUD · 2026-11-24");
+console.log("NORDAPP v0.4.0 · Módulo Pagos (Bandeja + Realizados + Conta) · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.3.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.4.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -347,6 +347,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "fornecedores"){ goToFornecedores(); return; }
   if(moduleId === "comprobantes"){ goToComprobantes(); return; }
   if(moduleId === "categorias"){ goToCategorias(); return; }
+  if(moduleId === "pagos"){ goToPagos(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -1115,6 +1116,13 @@ async function savePagamento(){
   else { showToast(novoEstado === 'pago' ? "Pago ✓" : "Pagamento parcial registrado ✓"); }
   closePagamentoModal();
   await loadComprobantes();
+  // Se estamos na view de Pagos, refrescar também pagamentos
+  if(document.getElementById("viewPagos").classList.contains("active")){
+    await loadPagamentos();
+    populateBandejaFornSelect();
+    populateRealFornSelect();
+    renderPagAtivo();
+  }
 }
 
 // ── Modal nova categoria DRE ──
@@ -1348,6 +1356,329 @@ async function goToCategorias(){
   await loadCategoriasAll();
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO PAGOS · Bandeja + Realizados + Estado de conta
+// ═════════════════════════════════════════════════════════════════════
+var _allPagamentos = [];
+var _activePagTab = "bandeja";
+
+function getPagPeriodo(){
+  return {
+    ini: document.getElementById("pagDataIni").value || null,
+    fim: document.getElementById("pagDataFim").value || null
+  };
+}
+
+function aplicarPagPeriodoPreset(preset){
+  var hoje = new Date();
+  var y = hoje.getFullYear(), m = hoje.getMonth();
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var ini = "", fim = "";
+  if(preset === "mes_atual"){ ini = iso(new Date(y,m,1)); fim = iso(new Date(y,m+1,0)); }
+  else if(preset === "mes_anterior"){ ini = iso(new Date(y,m-1,1)); fim = iso(new Date(y,m,0)); }
+  else if(preset === "ano_atual"){ ini = iso(new Date(y,0,1)); fim = iso(new Date(y,11,31)); }
+  document.getElementById("pagDataIni").value = ini;
+  document.getElementById("pagDataFim").value = fim;
+  document.querySelectorAll(".chip-btn[data-pag-periodo]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.pagPeriodo === preset);
+  });
+  renderPagAtivo();
+}
+
+function switchPagTab(tab){
+  _activePagTab = tab;
+  document.querySelectorAll(".tab-btn").forEach(function(b){
+    b.classList.toggle("active", b.dataset.tab === tab);
+  });
+  document.querySelectorAll(".tab-pane").forEach(function(p){
+    p.classList.toggle("active", p.id === "tab" + tab.charAt(0).toUpperCase() + tab.slice(1));
+  });
+  renderPagAtivo();
+}
+
+function renderPagAtivo(){
+  if(_activePagTab === "bandeja") renderBandeja();
+  else if(_activePagTab === "realizados") renderRealizados();
+  else if(_activePagTab === "conta") renderEstadoConta();
+}
+
+// ── Bandeja ──
+function diasAteVencimento(iso){
+  if(!iso) return null;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var venc = new Date(iso + "T00:00:00");
+  return Math.floor((venc - hoje) / 86400000);
+}
+function badgeVencimento(iso){
+  var d = diasAteVencimento(iso);
+  if(d === null) return '<span class="badge-venc ok">sem vto</span>';
+  if(d < 0)  return '<span class="badge-venc vencido">vencido '+Math.abs(d)+'d</span>';
+  if(d === 0) return '<span class="badge-venc hoje">vence hoje</span>';
+  if(d <= 7) return '<span class="badge-venc semana">em '+d+'d</span>';
+  return '<span class="badge-venc ok">em '+d+'d</span>';
+}
+
+function renderBandeja(){
+  var per = getPagPeriodo();
+  var centro = document.getElementById("bandejaCentroFilter").value;
+  var forn = document.getElementById("bandejaFornFilter").value;
+
+  // Pendentes e parciais apenas
+  var list = _allComps.filter(function(c){
+    if(c.estado !== 'pendente' && c.estado !== 'pago_parcial') return false;
+    if(per.ini && (c.data_competencia || "") < per.ini) return false;
+    if(per.fim && (c.data_competencia || "") > per.fim) return false;
+    if(centro && c.centro_custo !== centro) return false;
+    if(forn && String(c.fornecedor_id) !== forn) return false;
+    return true;
+  });
+
+  // Ordem por vencimento ASC (sem vto no final)
+  list.sort(function(a,b){
+    var av = a.data_vencimento || "9999-12-31";
+    var bv = b.data_vencimento || "9999-12-31";
+    return av.localeCompare(bv);
+  });
+
+  // KPIs
+  var total = 0, vencidos = 0, semana = 0;
+  list.forEach(function(c){
+    var saldo = Number(c.valor_total) - Number(c.valor_pago || 0);
+    total += saldo;
+    var d = diasAteVencimento(c.data_vencimento);
+    if(d !== null && d < 0) vencidos += saldo;
+    else if(d !== null && d <= 7) semana += saldo;
+  });
+  document.getElementById("bandejaKpis").innerHTML =
+    '<div class="kpi-card"><div class="kpi-label">A pagar</div><div class="kpi-value pendente">'+fmtBRL(total)+'</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Vencidos</div><div class="kpi-value" style="color:#e89a9a">'+fmtBRL(vencidos)+'</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Esta semana</div><div class="kpi-value" style="color:#f0d890">'+fmtBRL(semana)+'</div></div>';
+
+  var el = document.getElementById("bandejaList");
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">✓</div>Nada pendente.</div>';
+    return;
+  }
+
+  var canEdit = canEditComps();
+  el.innerHTML = list.map(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "—";
+    var cat  = c.categorias_dre ? c.categorias_dre.nome : "Sem categoria";
+    var saldo = Number(c.valor_total) - Number(c.valor_pago || 0);
+    var estado = c.estado;
+
+    var lines = '';
+    lines += '<div class="comp-item-line">Vence <b>'+fmtDate(c.data_vencimento)+'</b> '+badgeVencimento(c.data_vencimento)+'</div>';
+    lines += '<div class="comp-item-line">Mês ref. <b>'+fmtMesRef(c.data_competencia)+'</b></div>';
+    lines += '<div class="comp-item-line valor">'+fmtBRL(saldo)+'</div>';
+    if(estado === 'pago_parcial'){
+      lines += '<div class="comp-item-line" style="font-size:11px;opacity:0.6">já pago '+fmtBRL(c.valor_pago)+' de '+fmtBRL(c.valor_total)+'</div>';
+    }
+
+    var actionsHtml = '';
+    if(canEdit){
+      actionsHtml = '<div class="comp-item-actions">';
+      actionsHtml += '<button class="primary" data-pag="'+c.id+'">💵 Pagar '+fmtBRL(saldo)+'</button>';
+      actionsHtml += '<button data-edit="'+c.id+'" title="Editar">✎</button>';
+      if(c.anexo_url) actionsHtml += '<button data-anexo="'+c.anexo_url+'" title="Anexo">📎</button>';
+      actionsHtml += '</div>';
+    }
+
+    return '<div class="comp-item estado-'+estado+'">' +
+             '<div class="comp-estado-topright"><span class="chip-estado '+estado+'">'+(ESTADO_LABEL[estado]||estado)+'</span></div>' +
+             '<div class="comp-item-title">'+escapeHtml(forn)+'</div>' +
+             '<div class="comp-item-sub">'+escapeHtml(c.descricao||"—")+'</div>' +
+             '<div class="comp-item-lines">'+lines+'</div>' +
+             '<div class="comp-item-chips">' +
+               '<span class="chip-centro">'+(CENTRO_LABEL[c.centro_custo]||c.centro_custo)+'</span>' +
+               '<span class="chip-categoria">'+escapeHtml(cat)+'</span>' +
+             '</div>' +
+             actionsHtml +
+           '</div>';
+  }).join("");
+
+  el.querySelectorAll("[data-pag]").forEach(function(b){
+    b.addEventListener("click", function(e){ e.stopPropagation(); openPagamentoModal(b.dataset.pag); });
+  });
+  el.querySelectorAll("[data-edit]").forEach(function(b){
+    b.addEventListener("click", function(e){ e.stopPropagation(); openCompModal(b.dataset.edit); });
+  });
+  el.querySelectorAll("[data-anexo]").forEach(function(b){
+    b.addEventListener("click", function(e){ e.stopPropagation(); window.open(b.dataset.anexo, "_blank"); });
+  });
+
+  document.getElementById("pagosSubtitle").textContent = list.length + " pendente" + (list.length !== 1 ? "s" : "");
+}
+
+// ── Realizados ──
+async function loadPagamentos(){
+  var q = "pagamentos?select=*,comprobantes(descricao,fornecedor_id,fornecedores(nome))&order=data_pagamento.desc&limit=1000";
+  var data = await api(q);
+  _allPagamentos = data || [];
+  return _allPagamentos;
+}
+
+function pagamentosFiltrados(){
+  var per = getPagPeriodo();
+  var meio = document.getElementById("realMeioFilter").value;
+  var forn = document.getElementById("realFornFilter").value;
+  return _allPagamentos.filter(function(p){
+    if(per.ini && (p.data_pagamento || "") < per.ini) return false;
+    if(per.fim && (p.data_pagamento || "") > per.fim) return false;
+    if(meio && p.meio_pagamento !== meio) return false;
+    if(forn){
+      var fId = p.comprobantes ? p.comprobantes.fornecedor_id : null;
+      if(String(fId) !== forn) return false;
+    }
+    return true;
+  });
+}
+
+function renderRealizados(){
+  var list = pagamentosFiltrados();
+  var total = 0;
+  var meiosMap = {};
+  list.forEach(function(p){
+    total += Number(p.valor) || 0;
+    var m = p.meio_pagamento || "outro";
+    meiosMap[m] = (meiosMap[m] || 0) + 1;
+  });
+  var meioTop = "—";
+  var topCount = 0;
+  Object.keys(meiosMap).forEach(function(k){ if(meiosMap[k] > topCount){ topCount = meiosMap[k]; meioTop = MEIO_LABEL[k] || k; } });
+
+  document.getElementById("realizadosKpis").innerHTML =
+    '<div class="kpi-card"><div class="kpi-label">Total pago</div><div class="kpi-value pago">'+fmtBRL(total)+'</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Nº pagos</div><div class="kpi-value">'+list.length+'</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Meio top</div><div class="kpi-value" style="font-size:12px">'+meioTop+'</div></div>';
+
+  var el = document.getElementById("realizadosList");
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">💵</div>Sem pagos no período.</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(p){
+    var forn = (p.comprobantes && p.comprobantes.fornecedores) ? p.comprobantes.fornecedores.nome : "—";
+    var desc = p.comprobantes ? p.comprobantes.descricao : "";
+    var meio = MEIO_LABEL[p.meio_pagamento] || p.meio_pagamento || "—";
+    return '<div class="pag-item" data-comp="'+(p.comprobante_id||"")+'">' +
+             '<div class="pag-item-head">' +
+               '<div class="pag-item-forne">'+escapeHtml(forn)+'</div>' +
+               '<div class="pag-item-valor">'+fmtBRL(p.valor)+'</div>' +
+             '</div>' +
+             (desc ? '<div class="pag-item-desc">'+escapeHtml(desc)+'</div>' : '') +
+             '<div class="pag-item-meta">' +
+               '<span>'+fmtDate(p.data_pagamento)+'</span>' +
+               '<span class="chip-meio">'+meio+'</span>' +
+             '</div>' +
+           '</div>';
+  }).join("");
+
+  el.querySelectorAll("[data-comp]").forEach(function(it){
+    it.addEventListener("click", function(){
+      var cid = it.dataset.comp;
+      if(cid) openCompModal(cid);
+    });
+  });
+}
+
+function renderEstadoConta(){
+  var list = pagamentosFiltrados();
+  if(list.length === 0){
+    document.getElementById("contaList").innerHTML = '<div class="empty"><div class="empty-icon">🏦</div>Sem movimentos no período.</div>';
+    return;
+  }
+  var map = {};
+  list.forEach(function(p){
+    var m = p.meio_pagamento || "outro";
+    if(!map[m]) map[m] = { total: 0, count: 0 };
+    map[m].total += Number(p.valor) || 0;
+    map[m].count++;
+  });
+  var rows = Object.keys(map).map(function(k){
+    return { meio: k, label: MEIO_LABEL[k] || k, total: map[k].total, count: map[k].count };
+  }).sort(function(a,b){ return b.total - a.total; });
+
+  document.getElementById("contaList").innerHTML = rows.map(function(r){
+    return '<div class="conta-card">' +
+             '<div>' +
+               '<div class="conta-card-meio">'+r.label+'</div>' +
+               '<div class="conta-card-count">'+r.count+' movimento'+(r.count !== 1 ? "s" : "")+'</div>' +
+             '</div>' +
+             '<div class="conta-card-valor">'+fmtBRL(r.total)+'</div>' +
+           '</div>';
+  }).join("");
+}
+
+function exportPagamentosExcel(){
+  if(typeof XLSX === 'undefined'){ showToast("XLSX não carregou"); return; }
+  var list = pagamentosFiltrados();
+  if(list.length === 0){ showToast("Sem dados"); return; }
+  var rows = list.map(function(p){
+    var forn = (p.comprobantes && p.comprobantes.fornecedores) ? p.comprobantes.fornecedores.nome : "—";
+    var desc = p.comprobantes ? p.comprobantes.descricao : "";
+    return {
+      "Data pagamento": p.data_pagamento || "",
+      "Fornecedor":     forn,
+      "Descrição":      desc,
+      "Valor":          Number(p.valor) || 0,
+      "Meio":           MEIO_LABEL[p.meio_pagamento] || p.meio_pagamento || "",
+      "Banco ref":      p.banco_ref || "",
+      "Observações":    p.observacoes || "",
+      "Registrado por": p.created_by || ""
+    };
+  });
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:28},{wch:36},{wch:12},{wch:16},{wch:14},{wch:30},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, "Pagamentos");
+  var per = getPagPeriodo();
+  var tag = (per.ini && per.fim) ? (per.ini + "_a_" + per.fim) : new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "NORDAPP_Pagamentos_" + tag + ".xlsx");
+  showToast("Excel baixado ✓");
+}
+
+function populateBandejaFornSelect(){
+  // Ordena alfabético e usa só os que aparecem em comps pendentes
+  var seen = {};
+  _allComps.forEach(function(c){
+    if(c.estado === 'pendente' || c.estado === 'pago_parcial'){
+      if(c.fornecedores) seen[c.fornecedor_id] = c.fornecedores.nome;
+    }
+  });
+  var opts = Object.keys(seen).sort(function(a,b){ return (seen[a]||"").localeCompare(seen[b]||""); })
+    .map(function(id){ return '<option value="'+id+'">'+escapeHtml(seen[id])+'</option>'; }).join("");
+  document.getElementById("bandejaFornFilter").innerHTML = '<option value="">Todos fornecedores</option>' + opts;
+}
+
+function populateRealFornSelect(){
+  // Fornecedores que aparecem em pagamentos
+  var seen = {};
+  _allPagamentos.forEach(function(p){
+    if(p.comprobantes && p.comprobantes.fornecedores){
+      seen[p.comprobantes.fornecedor_id] = p.comprobantes.fornecedores.nome;
+    }
+  });
+  var opts = Object.keys(seen).sort(function(a,b){ return (seen[a]||"").localeCompare(seen[b]||""); })
+    .map(function(id){ return '<option value="'+id+'">'+escapeHtml(seen[id])+'</option>'; }).join("");
+  document.getElementById("realFornFilter").innerHTML = '<option value="">Todos fornecedores</option>' + opts;
+}
+
+async function goToPagos(){
+  showView("viewPagos");
+  // Garantir dados em cache
+  if(_allComps.length === 0) await loadComprobantes();
+  await loadPagamentos();
+  populateBandejaFornSelect();
+  populateRealFornSelect();
+  // Default: mês atual
+  if(!document.getElementById("pagDataIni").value){
+    aplicarPagPeriodoPreset("mes_atual");
+  } else {
+    renderPagAtivo();
+  }
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -1448,6 +1779,26 @@ function init(){
     if(!canEditCats()){ showToast("Sem permissão"); return; }
     openCatModal(null);
   });
+
+  // ─── Módulo Pagos ───
+  document.querySelectorAll(".tab-btn[data-tab]").forEach(function(b){
+    b.addEventListener("click", function(){ switchPagTab(b.dataset.tab); });
+  });
+  document.querySelectorAll(".chip-btn[data-pag-periodo]").forEach(function(b){
+    b.addEventListener("click", function(){ aplicarPagPeriodoPreset(b.dataset.pagPeriodo); });
+  });
+  ["pagDataIni","pagDataFim","bandejaCentroFilter","bandejaFornFilter","realMeioFilter","realFornFilter"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", renderPagAtivo);
+  });
+  ["pagDataIni","pagDataFim"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", function(){
+      document.querySelectorAll(".chip-btn[data-pag-periodo]").forEach(function(b){ b.classList.remove("active"); });
+    });
+  });
+  var btnExpP = document.getElementById("btnExportPagamentos");
+  if(btnExpP) btnExpP.addEventListener("click", exportPagamentosExcel);
 
   // Modal pagamento
   var btnClosePag = document.getElementById("btnClosePag");

@@ -914,3 +914,143 @@ a { color: var(--ocean); text-decoration: none; }
   margin: 0 auto 10px;
 }
 .module-actions .btn-primary { width: 100%; }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.4.0 · Módulo Pagos · Tabs + listas
+   ═════════════════════════════════════════════════════════════════════ */
+
+.tabs-row {
+  display: flex;
+  gap: 2px;
+  max-width: 480px;
+  margin: 0 auto 12px;
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  color: rgba(255,255,255,0.75);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all .12s;
+}
+.tab-btn:hover { color: var(--white); }
+.tab-btn.active {
+  background: var(--sand);
+  color: var(--ocean);
+}
+
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* Linha de pagamento (histórico) */
+.pag-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-width: 480px; margin: 0 auto;
+}
+.pag-item {
+  background: var(--sand);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: transform .1s;
+}
+.pag-item:hover { transform: translateY(-1px); background: var(--sand-mid); }
+.pag-item-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px;
+}
+.pag-item-forne {
+  font-weight: 600; color: var(--ocean);
+  font-size: 14px;
+  flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pag-item-valor {
+  font-weight: 700; color: var(--text);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.pag-item-meta {
+  display: flex; gap: 10px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+  flex-wrap: wrap;
+}
+.pag-item-desc {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.6;
+  margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chip-meio {
+  display: inline-block;
+  font-size: 10px; letter-spacing: 0.5px;
+  padding: 2px 8px; border-radius: 10px;
+  background: rgba(26,74,107,0.08);
+  color: var(--ocean);
+  font-weight: 600;
+}
+
+/* Bandeja item: badges de vencimento */
+.badge-venc {
+  display: inline-block;
+  font-size: 10px; letter-spacing: 0.5px;
+  padding: 2px 7px; border-radius: 10px;
+  font-weight: 700;
+  margin-left: 6px;
+}
+.badge-venc.vencido { background: var(--red-bg); color: #7a3a3a; }
+.badge-venc.hoje    { background: #f2a25a; color: #fff; }
+.badge-venc.semana  { background: var(--yellow-bg); color: #8a6a1f; }
+.badge-venc.ok      { background: var(--green-bg); color: #3a5f44; }
+
+/* Estado de conta · cards por meio */
+.conta-hint {
+  max-width: 480px;
+  margin: 0 auto 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  line-height: 1.4;
+}
+.conta-list {
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: 480px; margin: 0 auto;
+}
+.conta-card {
+  background: var(--sand);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.conta-card-meio {
+  font-weight: 600; color: var(--ocean);
+  font-size: 15px;
+}
+.conta-card-count {
+  font-size: 11px; color: var(--text); opacity: 0.6;
+  margin-top: 2px;
+  font-weight: 500;
+}
+.conta-card-valor {
+  font-weight: 700; color: var(--text);
+  font-size: 17px;
+  letter-spacing: -0.3px;
+  text-align: right;
+}

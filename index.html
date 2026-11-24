@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=0.3.1">
+<link rel="stylesheet" href="styles.css?v=0.4.0">
 </head>
 <body>
 
@@ -427,6 +427,97 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO PAGOS ════════════════════════════════════════════════════ -->
+<div id="viewPagos" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubDespesas">← Despesas</button>
+      <div class="module-title-block">
+        <div class="module-title">💳 Pagos</div>
+        <div class="module-subtitle" id="pagosSubtitle">—</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-row">
+      <button class="tab-btn active" data-tab="bandeja">Bandeja</button>
+      <button class="tab-btn" data-tab="realizados">Realizados</button>
+      <button class="tab-btn" data-tab="conta">Estado de conta</button>
+    </div>
+
+    <!-- Filtro de período (compartilhado entre tabs) -->
+    <div class="periodo-row">
+      <div class="periodo-presets">
+        <button class="chip-btn" data-pag-periodo="mes_atual">Mês atual</button>
+        <button class="chip-btn" data-pag-periodo="mes_anterior">Mês anterior</button>
+        <button class="chip-btn" data-pag-periodo="ano_atual">Ano</button>
+        <button class="chip-btn" data-pag-periodo="tudo">Tudo</button>
+      </div>
+      <div class="periodo-datas">
+        <input type="date" id="pagDataIni" class="filter-input">
+        <span class="periodo-sep">até</span>
+        <input type="date" id="pagDataFim" class="filter-input">
+      </div>
+    </div>
+
+    <!-- ── TAB BANDEJA ── -->
+    <div class="tab-pane active" id="tabBandeja">
+      <div class="kpi-row" id="bandejaKpis"></div>
+
+      <div class="filter-row">
+        <select id="bandejaCentroFilter" class="filter-select">
+          <option value="">Todos centros</option>
+          <option value="geral">Geral</option>
+          <option value="lofts">Lofts</option>
+          <option value="casa_nordestina">Casa Nordestina</option>
+          <option value="consorcio">Consórcio</option>
+        </select>
+        <select id="bandejaFornFilter" class="filter-select">
+          <option value="">Todos fornecedores</option>
+        </select>
+      </div>
+
+      <div id="bandejaList" class="comp-list"><div class="loading">Carregando...</div></div>
+    </div>
+
+    <!-- ── TAB REALIZADOS ── -->
+    <div class="tab-pane" id="tabRealizados">
+      <div class="kpi-row" id="realizadosKpis"></div>
+
+      <div class="module-actions">
+        <div style="display:flex;justify-content:flex-end">
+          <button class="btn-ghost" id="btnExportPagamentos">⬇ Descargar Excel</button>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <select id="realMeioFilter" class="filter-select">
+          <option value="">Todos meios</option>
+          <option value="banco_inter">Banco Inter · LG</option>
+          <option value="banco_bradesco">Bradesco</option>
+          <option value="banco_itau">Itaú</option>
+          <option value="cartao_corp">Cartão corp.</option>
+          <option value="pix">Pix</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="cripto">Cripto</option>
+          <option value="outro">Outro</option>
+        </select>
+        <select id="realFornFilter" class="filter-select">
+          <option value="">Todos fornecedores</option>
+        </select>
+      </div>
+
+      <div id="realizadosList" class="pag-list"><div class="loading">Carregando...</div></div>
+    </div>
+
+    <!-- ── TAB ESTADO DE CONTA ── -->
+    <div class="tab-pane" id="tabConta">
+      <div class="conta-hint">Total pago por meio de pagamento no período selecionado · útil para conciliar com o extrato real do banco.</div>
+      <div id="contaList" class="conta-list"><div class="loading">Carregando...</div></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MÓDULO CATEGORIAS (Admin) ═══════════════════════════════════════ -->
 <div id="viewCategorias" class="view">
   <div class="content">
@@ -468,6 +559,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.3.1"></script>
+<script src="app.js?v=0.4.0"></script>
 </body>
 </html>
