@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   NORDAPP · styles.css v0.2.2
-   Paleta ocean + sand · Cormorant Garamond + Jost
+   NORDAPP · styles.css v0.2.3
+   Paleta ocean + sand · Inter (todo sans-serif, mais legível)
    Siguindo patrão AZUCAPP: views independentes, ações inline
    ═════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Jost:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
   /* Paleta */
@@ -25,8 +25,8 @@
   --red-bg: #f5dede;
 
   /* Tipografia */
-  --font-serif: 'Cormorant Garamond', serif;
-  --font-sans: 'Jost', sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
 
   /* Spacings */
   --radius-sm: 6px;
@@ -41,8 +41,10 @@ body {
   font-family: var(--font-sans);
   color: var(--white);
   min-height: 100vh;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a { color: var(--ocean); text-decoration: none; }
@@ -76,27 +78,28 @@ a { color: var(--ocean); text-decoration: none; }
   text-align: center;
 }
 .login-logo {
-  font-family: var(--font-serif);
-  font-size: 36px; font-weight: 700;
-  letter-spacing: 6px;
+  font-family: var(--font-display);
+  font-size: 34px; font-weight: 800;
+  letter-spacing: 4px;
   color: var(--ocean);
   line-height: 1;
 }
-.login-sub { font-size: 11px; color: var(--text-soft); letter-spacing: 2px; margin: 14px 0 20px; text-transform: uppercase; }
+.login-sub { font-size: 12px; color: var(--text); letter-spacing: 2.5px; margin: 14px 0 22px; text-transform: uppercase; font-weight: 500; opacity: 0.75; }
 .login-field { text-align: left; margin-bottom: 14px; }
-.login-field label { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--text-soft); margin-bottom: 4px; text-transform: uppercase; font-weight: 600; }
+.login-field label { display: block; font-size: 11px; letter-spacing: 1.5px; color: var(--text); margin-bottom: 6px; text-transform: uppercase; font-weight: 600; opacity: 0.8; }
 .login-field input {
-  width: 100%; padding: 12px 14px;
+  width: 100%; padding: 13px 15px;
   border-radius: var(--radius-md); border: 1.5px solid var(--sand-mid);
-  background: var(--white); font-size: 14px; color: var(--text);
+  background: var(--white); font-size: 15px; color: var(--text);
   font-family: var(--font-sans); outline: none;
 }
 .login-field input:focus { border-color: var(--ocean); }
 .login-btn {
-  width: 100%; padding: 13px; margin-top: 6px;
+  width: 100%; padding: 14px; margin-top: 10px;
   background: var(--ocean); color: var(--white); border: none;
-  border-radius: var(--radius-md); font-size: 14px; font-weight: 600;
+  border-radius: var(--radius-md); font-size: 15px; font-weight: 600;
   cursor: pointer; font-family: var(--font-sans);
+  letter-spacing: 0.5px;
 }
 .login-btn:hover { background: var(--ocean-mid); }
 .login-error { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
@@ -107,25 +110,27 @@ a { color: var(--ocean); text-decoration: none; }
   padding: 28px 0 10px;
 }
 .painel-brand {
-  font-family: var(--font-serif);
-  font-size: 44px; font-weight: 700;
-  letter-spacing: 7px;
+  font-family: var(--font-display);
+  font-size: 42px; font-weight: 800;
+  letter-spacing: 4px;
   color: var(--white);
   line-height: 1;
 }
 .painel-tagline {
-  font-size: 11px; color: var(--sand-dark);
-  letter-spacing: 3px;
-  margin-top: 6px;
+  font-size: 12px; color: var(--sand-dark);
+  letter-spacing: 2.5px;
+  margin-top: 8px;
+  font-weight: 500;
 }
 
 .greeting {
   text-align: center;
-  margin: 20px 0 14px;
-  font-family: var(--font-serif);
-  font-size: 24px;
-  font-weight: 600;
+  margin: 24px 0 16px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
   color: var(--white);
+  letter-spacing: -0.2px;
 }
 .greeting-emoji { margin-left: 8px; }
 
@@ -156,22 +161,25 @@ a { color: var(--ocean); text-decoration: none; }
 .user-pill-name {
   font-weight: 600;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
 }
 .user-pill-role {
-  font-size: 10px;
-  color: var(--text-soft);
+  font-size: 11px;
+  color: var(--text);
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  margin-top: 2px;
+  margin-top: 3px;
+  opacity: 0.65;
+  font-weight: 500;
 }
 
 .datetime {
   text-align: center;
-  font-size: 12px;
-  color: rgba(255,255,255,0.6);
-  letter-spacing: 1px;
-  margin: 8px 0 20px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.5px;
+  margin: 10px 0 24px;
+  font-weight: 400;
 }
 
 /* ── PAINEL CARDS (nivel 1 y 2) ────────────────────────────────────── */
@@ -197,18 +205,21 @@ a { color: var(--ocean); text-decoration: none; }
   box-shadow: 0 8px 24px rgba(0,0,0,0.2);
 }
 .painel-tile-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
+  font-size: 34px;
+  margin-bottom: 10px;
 }
 .painel-tile-title {
-  font-family: var(--font-serif);
-  font-size: 18px; font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 19px; font-weight: 700;
   color: var(--ocean);
-  margin-bottom: 4px;
+  margin-bottom: 5px;
+  letter-spacing: -0.3px;
 }
 .painel-tile-sub {
-  font-size: 11px; color: var(--text-soft);
-  letter-spacing: 0.5px;
+  font-size: 12px; color: var(--text);
+  letter-spacing: 0.2px;
+  opacity: 0.65;
+  font-weight: 500;
 }
 
 /* ── MÓDULO HEADER (view-level, patron AZUCAPP) ────────────────────── */
@@ -224,24 +235,28 @@ a { color: var(--ocean); text-decoration: none; }
 .btn-back {
   background: rgba(255,255,255,.1);
   color: var(--white);
-  border: 1px solid rgba(255,255,255,.25);
-  padding: 7px 12px;
+  border: 1px solid rgba(255,255,255,.3);
+  padding: 8px 14px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
 }
 .btn-back:hover { background: rgba(255,255,255,.2); }
 .module-title-block { flex: 1; }
 .module-title {
-  font-family: var(--font-serif);
-  font-size: 18px; font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 19px; font-weight: 700;
   color: var(--white);
+  letter-spacing: -0.2px;
 }
 .module-subtitle {
-  font-size: 11px;
-  color: rgba(255,255,255,.65);
-  letter-spacing: 0.5px;
+  font-size: 12px;
+  color: rgba(255,255,255,.75);
+  letter-spacing: 0.2px;
+  margin-top: 1px;
+  font-weight: 400;
 }
 
 /* ── BOTÕES ────────────────────────────────────────────────────────── */
@@ -253,8 +268,9 @@ a { color: var(--ocean); text-decoration: none; }
   padding: 13px;
   font-weight: 600;
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
+  letter-spacing: 0.2px;
 }
 .btn-primary:hover { background: var(--ocean-mid); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -267,22 +283,23 @@ a { color: var(--ocean); text-decoration: none; }
   padding: 11px;
   font-weight: 500;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 .btn-secondary:hover { background: var(--sand-dark); color: var(--white); }
 
 .btn-ghost {
   background: transparent;
-  border: 1px solid var(--sand-dark);
-  color: var(--text-soft);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.8);
   border-radius: var(--radius-sm);
-  padding: 5px 10px;
+  padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
   font-family: var(--font-sans);
+  font-weight: 500;
 }
-.btn-ghost:hover { background: var(--sand-mid); }
+.btn-ghost:hover { background: rgba(255,255,255,0.1); color: var(--white); }
 
 .btn-logout {
   display: block; width: 100%;
@@ -309,7 +326,7 @@ a { color: var(--ocean); text-decoration: none; }
   margin: 20px 0;
 }
 .em-construcao-icon { font-size: 40px; margin-bottom: 12px; }
-.em-construcao-title { font-family: var(--font-serif); font-size: 18px; color: var(--ocean); margin-bottom: 6px; }
+.em-construcao-title { font-family: var(--font-display); font-size: 18px; color: var(--ocean); margin-bottom: 6px; }
 .em-construcao-sub { font-size: 12px; }
 
 /* ── TOAST ─────────────────────────────────────────────────────────── */
@@ -351,8 +368,8 @@ a { color: var(--ocean); text-decoration: none; }
   border: 1.5px solid var(--sand-dark);
   color: var(--text);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 11px 13px;
+  font-size: 14px;
   font-family: var(--font-sans);
   outline: none;
 }
@@ -381,27 +398,31 @@ a { color: var(--ocean); text-decoration: none; }
   display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
 }
 .fornecedor-item-nome {
-  font-family: var(--font-serif);
-  font-size: 17px; font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 16px; font-weight: 600;
   color: var(--ocean);
   flex: 1;
+  letter-spacing: -0.1px;
 }
 .fornecedor-item-tipo {
   display: inline-block;
-  font-size: 10px; letter-spacing: 1px;
+  font-size: 10px; letter-spacing: 0.8px;
   text-transform: uppercase;
   background: var(--ocean-light);
   color: var(--ocean);
-  padding: 3px 9px; border-radius: 10px;
-  font-weight: 600;
+  padding: 4px 10px; border-radius: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .fornecedor-item-tipo.no-tipo {
   background: var(--yellow-bg);
   color: var(--yellow);
 }
 .fornecedor-item-meta {
-  font-size: 11px; color: var(--text-soft);
-  display: flex; gap: 12px; flex-wrap: wrap;
+  font-size: 12px; color: var(--text);
+  opacity: 0.7;
+  display: flex; gap: 14px; flex-wrap: wrap;
+  margin-top: 2px;
 }
 .fornecedor-item-meta span { display: inline-flex; align-items: center; gap: 3px; }
 .fornecedor-dup-badge {
@@ -438,9 +459,10 @@ a { color: var(--ocean); text-decoration: none; }
   margin-bottom: 16px;
 }
 .modal-title {
-  font-family: var(--font-serif);
-  font-size: 20px; font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 19px; font-weight: 700;
   color: var(--ocean);
+  letter-spacing: -0.2px;
 }
 .btn-x {
   background: none; border: none;
@@ -454,21 +476,22 @@ a { color: var(--ocean); text-decoration: none; }
 
 .modal label {
   display: block;
-  font-size: 10px; letter-spacing: 1px;
-  color: var(--text-soft);
+  font-size: 11px; letter-spacing: 1px;
+  color: var(--text);
   text-transform: uppercase;
   font-weight: 600;
-  margin: 10px 0 4px;
+  margin: 12px 0 5px;
+  opacity: 0.75;
 }
 .modal label .req { color: var(--red); }
 .modal input, .modal select, .modal textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1.5px solid var(--sand-dark);
   background: var(--white);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text);
   outline: none;
 }
