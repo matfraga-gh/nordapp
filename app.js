@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.5.1 · DRE + Receitas de reservas (checkin / canal / adic / devol) (Bandeja + Realizados + Conta) · 2026-11-24");
+console.log("NORDAPP v0.5.2 · DRE estilo AZUCAPP · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.5.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.5.2 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -1845,37 +1845,56 @@ function agruparDespesasMes(y, m, incluirConsorcio){
   return grupos;
 }
 
-function dreRenderSection(titulo, dados, totalColor){
-  if(!dados || Object.keys(dados).length === 0) return "";
-  var total = 0;
-  var lines = Object.keys(dados).sort(function(a,b){ return dados[b] - dados[a]; }).map(function(k){
-    total += dados[k];
-    return '<div class="dre-line">' +
-             '<div class="dre-line-label">'+escapeHtml(k)+'</div>' +
-             '<div class="dre-line-valor">'+fmtBRL(dados[k])+'</div>' +
-           '</div>';
-  }).join("");
-  return '<div class="dre-section">' +
-           '<div class="dre-section-header">' +
-             '<div class="dre-section-title">'+titulo+'</div>' +
-             '<div class="dre-section-total">'+fmtBRL(total)+'</div>' +
-           '</div>' +
-           lines +
-         '</div>';
+// Formato compacto brl (sin R$ repetitivo, visible en tabla)
+function fmtMoney(v){
+  var n = Number(v) || 0;
+  var abs = Math.abs(n);
+  var str = abs.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return (n < 0 ? '−' : '') + str;
+}
+function fmtPct(v, base){
+  if(!base || base === 0) return '—';
+  var p = (v / base) * 100;
+  return p.toFixed(1) + '%';
 }
 
-function dreTotalCard(label, valor, baseMargem, cls){
-  var margemHtml = "";
-  if(baseMargem && baseMargem !== 0){
-    var m = (valor / baseMargem) * 100;
-    margemHtml = '<div class="dre-total-margem">margem '+m.toFixed(1)+'%</div>';
-  }
-  return '<div class="dre-total-card '+(cls||'')+'">' +
-           '<div>' +
-             '<div class="dre-total-label">'+label+'</div>' +
-             margemHtml +
-           '</div>' +
-           '<div class="dre-total-valor">'+fmtBRL(valor)+'</div>' +
+// Renderiza uma seção com header colorido + linhas + opcional subitems
+function dreRenderSec(cfg, dados, base, subitemsMap){
+  // dados: { "nome categoria": valor, ... }
+  // subitemsMap (opcional): { "nome categoria": [{label, valor}, ...] }
+  if(!dados || Object.keys(dados).length === 0) return "";
+  var total = 0;
+  Object.keys(dados).forEach(function(k){ total += dados[k]; });
+  var sinal = cfg.sinal || '−';
+  var html = '<div class="dre-sec-head '+cfg.cls+'">' +
+               '<div class="sh-label">'+sinal+' '+cfg.titulo+'</div>' +
+               '<div class="sh-valor">'+fmtMoney(total)+'</div>' +
+               '<div class="sh-pct">'+fmtPct(total, base)+'</div>' +
+             '</div>';
+  Object.keys(dados).sort(function(a,b){ return dados[b] - dados[a]; }).forEach(function(k){
+    html += '<div class="dre-row">' +
+              '<div class="r-label">'+escapeHtml(k)+'</div>' +
+              '<div class="r-valor">'+fmtMoney(dados[k])+'</div>' +
+              '<div class="r-pct">'+fmtPct(dados[k], base)+'</div>' +
+            '</div>';
+    if(subitemsMap && subitemsMap[k]){
+      subitemsMap[k].forEach(function(s){
+        html += '<div class="dre-row sub">' +
+                  '<div class="r-label">'+escapeHtml(s.label)+'</div>' +
+                  '<div class="r-valor">'+fmtMoney(s.valor)+'</div>' +
+                  '<div class="r-pct">'+fmtPct(s.valor, base)+'</div>' +
+                '</div>';
+      });
+    }
+  });
+  return html;
+}
+
+function dreTotalRow(cls, label, valor, baseMargem, cssExtra){
+  return '<div class="dre-total-row '+cls+(cssExtra?' '+cssExtra:'')+'">' +
+           '<div class="t-label">'+label+'</div>' +
+           '<div class="t-valor">'+fmtMoney(valor)+'</div>' +
+           '<div class="t-pct">'+fmtPct(valor, baseMargem)+'</div>' +
          '</div>';
 }
 
@@ -1940,72 +1959,67 @@ async function renderDRE(){
   var ebitda        = resultadoOp - despAdm - tributos;
   var resultadoLiq  = ebitda - despFin - naoOp;
 
+  // Base para % = receita total
+  var base = receitasTotal;
+
   var html = warningHtml;
+
+  // Tabela principal
+  html += '<div class="dre-table">';
+  html += '<div class="dre-colheader"><div>Conta</div><div>R$</div><div>%</div></div>';
 
   // RECEITAS
   if(receitasTotal > 0){
-    html += '<div class="dre-section">' +
-              '<div class="dre-section-header">' +
-                '<div class="dre-section-title">Receitas</div>' +
-                '<div class="dre-section-total">'+fmtBRL(receitasTotal)+'</div>' +
-              '</div>';
-
-    // Hospedagem (quebra por canal)
+    var receitaDados = {};
+    var receitaSubs = {};
     if(receitasHospedagem > 0){
-      html += '<div class="dre-line">' +
-                '<div class="dre-line-label"><b>Hospedagem</b></div>' +
-                '<div class="dre-line-valor">'+fmtBRL(receitasHospedagem)+'</div>' +
-              '</div>';
-      Object.keys(receitasCanalBreakdown).sort(function(a,b){ return receitasCanalBreakdown[b] - receitasCanalBreakdown[a]; }).forEach(function(c){
-        html += '<div class="dre-line sub">' +
-                  '<div class="dre-line-label">· '+escapeHtml(c)+'</div>' +
-                  '<div class="dre-line-valor">'+fmtBRL(receitasCanalBreakdown[c])+'</div>' +
-                '</div>';
+      receitaDados["Hospedagem"] = receitasHospedagem;
+      var subs = [];
+      Object.keys(receitasCanalBreakdown).sort(function(a,b){ return receitasCanalBreakdown[b]-receitasCanalBreakdown[a]; }).forEach(function(c){
+        subs.push({ label: c, valor: receitasCanalBreakdown[c] });
       });
+      receitaSubs["Hospedagem"] = subs;
     }
-    if(receitasAdicionais > 0){
-      html += '<div class="dre-line">' +
-                '<div class="dre-line-label">Serviços adicionais (café, early CI, etc)</div>' +
-                '<div class="dre-line-valor">'+fmtBRL(receitasAdicionais)+'</div>' +
-              '</div>';
-    }
-    if(devolucoes > 0){
-      html += '<div class="dre-line">' +
-                '<div class="dre-line-label">(−) Devoluções</div>' +
-                '<div class="dre-line-valor" style="color:#e8b0b0">−'+fmtBRL(devolucoes)+'</div>' +
-              '</div>';
-    }
+    if(receitasAdicionais > 0) receitaDados["Serviços adicionais"] = receitasAdicionais;
+    if(devolucoes > 0)         receitaDados["(−) Devoluções"] = -devolucoes;
     if(grupos.receita){
       Object.keys(grupos.receita).forEach(function(k){
-        html += '<div class="dre-line">' +
-                  '<div class="dre-line-label">'+escapeHtml(k)+' <span style="opacity:0.5;font-size:11px">(comprobante)</span></div>' +
-                  '<div class="dre-line-valor">'+fmtBRL(grupos.receita[k])+'</div>' +
-                '</div>';
+        receitaDados[k + " (comprobante)"] = grupos.receita[k];
       });
     }
-    html += '</div>';
+    html += dreRenderSec({ cls:'sec-receita', titulo:'Receitas', sinal:'+' }, receitaDados, base, receitaSubs);
   } else if(reservasResult.ok){
     html += '<div class="dre-warning">Nenhuma receita em '+dreMesLabel(y,m)+'. Confira se há reservas com check-in neste mês (status ≠ cancelada).</div>';
   }
 
   // CUSTO OP
-  html += dreRenderSection('(−) Custo operacional', grupos.custo_operacional);
-  html += dreTotalCard('Resultado operacional bruto', resultadoOp, receitasTotal, resultadoOp >= 0 ? 'positivo' : 'negativo');
+  html += dreRenderSec({ cls:'sec-custo-op', titulo:'Custo operacional' }, grupos.custo_operacional, base);
+  // Resultado operacional bruto
+  html += dreTotalRow('tot-bruto', 'Resultado operacional bruto', resultadoOp, base);
 
-  // ADM + TRIBUTOS
-  html += dreRenderSection('(−) Despesas administrativas', grupos.despesa_admin);
-  html += dreRenderSection('(−) Tributos', grupos.tributos);
-  html += dreTotalCard('EBITDA', ebitda, receitasTotal, ebitda >= 0 ? 'positivo' : 'negativo');
+  // ADM
+  html += dreRenderSec({ cls:'sec-despesa-admin', titulo:'Despesas administrativas' }, grupos.despesa_admin, base);
+  // TRIBUTOS
+  html += dreRenderSec({ cls:'sec-tributos', titulo:'Tributos' }, grupos.tributos, base);
+  // EBITDA
+  html += dreTotalRow('tot-ebitda', 'EBITDA', ebitda, base);
 
-  // FIN + NAO OP
-  html += dreRenderSection('(−) Despesas financeiras', grupos.despesa_financeira);
-  html += dreRenderSection('(−) Não operacional', grupos.nao_operacional);
-  html += dreTotalCard('Resultado líquido', resultadoLiq, receitasTotal, resultadoLiq >= 0 ? 'positivo' : 'negativo');
+  // FINANCEIRAS
+  html += dreRenderSec({ cls:'sec-despesa-fin', titulo:'Despesas financeiras' }, grupos.despesa_financeira, base);
+  // NÃO OP
+  html += dreRenderSec({ cls:'sec-nao-op', titulo:'Não operacional' }, grupos.nao_operacional, base);
+  // LÍQUIDO
+  html += dreTotalRow('tot-liquido', 'Resultado líquido', resultadoLiq, base, resultadoLiq < 0 ? 'negativo' : '');
 
-  if(html === warningHtml || html === ""){
-    html += '<div class="empty"><div class="empty-icon">📊</div>Sem movimento no mês.</div>';
+  html += '</div>'; // .dre-table
+
+  // Fórmula
+  html += '<div class="dre-formula">Resultado líquido = Receitas − Custo op. − Despesas adm. − Tributos − Financeiras − Não op.</div>';
+
+  if(receitasTotal === 0 && Object.keys(grupos).length === 0){
+    el.innerHTML = warningHtml + '<div class="empty"><div class="empty-icon">📊</div>Sem movimento em '+dreMesLabel(y,m)+'.</div>';
+    return;
   }
-
   el.innerHTML = html;
 }
 

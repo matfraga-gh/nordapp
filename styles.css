@@ -1064,3 +1064,147 @@ a { color: var(--ocean); text-decoration: none; }
   min-width: 0;
   text-overflow: ellipsis;
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.5.2 · DRE estilo AZUCAPP · Headers coloridos + colunas monto/%
+   ═════════════════════════════════════════════════════════════════════ */
+
+.dre-mes-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 480px;
+  margin: 0 auto 14px;
+}
+.dre-mes-nav .chip-btn { flex: 0 0 auto; }
+.dre-mes-atual {
+  flex: 1;
+  text-align: center;
+  background: var(--sand);
+  color: var(--ocean);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  text-transform: capitalize;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+/* Tabela DRE */
+.dre-table {
+  max-width: 560px;
+  margin: 0 auto;
+  background: rgba(0,0,0,0.15);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Cabeçalho de coluna: Concepto | Monto | % */
+.dre-colheader {
+  display: grid;
+  grid-template-columns: 1fr 100px 52px;
+  gap: 6px;
+  padding: 7px 12px;
+  background: rgba(0,0,0,0.3);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.dre-colheader > :nth-child(2),
+.dre-colheader > :nth-child(3) { text-align: right; }
+
+/* Section header (colorido por grupo) */
+.dre-sec-head {
+  display: grid;
+  grid-template-columns: 1fr 100px 52px;
+  gap: 6px;
+  padding: 10px 12px;
+  color: var(--white);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  align-items: center;
+}
+.dre-sec-head .sh-label { font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; }
+.dre-sec-head .sh-valor { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
+.dre-sec-head .sh-pct   { text-align: right; opacity: 0.85; font-size: 12px; }
+
+.sec-receita       { background: #4e8a63; }   /* verde */
+.sec-custo-op      { background: #a05a9a; }   /* violeta */
+.sec-despesa-admin { background: #3a6d94; }   /* azul */
+.sec-tributos      { background: #c9823a; }   /* laranja */
+.sec-despesa-fin   { background: #4a9bb5; }   /* ciano */
+.sec-nao-op        { background: #7a7a8a; }   /* cinza */
+
+/* Linhas de conta */
+.dre-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 52px;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.85);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  align-items: center;
+}
+.dre-row:hover { background: rgba(255,255,255,0.04); }
+.dre-row:last-child { border-bottom: none; }
+.dre-row .r-label {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dre-row .r-valor { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--white); }
+.dre-row .r-pct   { text-align: right; opacity: 0.55; font-size: 11px; font-weight: 500; }
+.dre-row.sub .r-label { padding-left: 14px; color: rgba(255,255,255,0.7); font-size: 11.5px; }
+.dre-row.sub .r-label::before { content: "↳ "; opacity: 0.5; }
+.dre-row.neg .r-valor { color: #f0a8a8; }
+
+/* Totalizadores (estilo AZUCAPP) */
+.dre-total-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 52px;
+  gap: 6px;
+  padding: 12px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  color: var(--white);
+}
+.dre-total-row .t-label { text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+.dre-total-row .t-valor { text-align: right; font-variant-numeric: tabular-nums; font-size: 15px; }
+.dre-total-row .t-pct   { text-align: right; opacity: 0.85; font-size: 12px; }
+
+.tot-bruto    { background: #2b6a8f; }  /* azul */
+.tot-ebitda   { background: #d4a73a; color: #2a2010; }  /* amarillo tipo AZUCAPP */
+.tot-liquido  { background: #1a3f5e; border-top: 2px solid rgba(255,255,255,0.3); }
+.tot-liquido.negativo { background: #8b3a3a; }
+
+/* Fórmula pequena abaixo */
+.dre-formula {
+  max-width: 560px;
+  margin: 0 auto 10px;
+  padding: 6px 14px 10px;
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.55);
+  text-align: center;
+  letter-spacing: 0.3px;
+  font-style: italic;
+}
+
+/* Warning (se falhar leitura reservas) */
+.dre-warning {
+  max-width: 560px;
+  margin: 0 auto 12px;
+  padding: 10px 12px;
+  background: rgba(201, 168, 96, 0.15);
+  border: 1px solid rgba(201, 168, 96, 0.4);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: #f0d890;
+  line-height: 1.5;
+}
