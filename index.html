@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=0.4.0">
+<link rel="stylesheet" href="styles.css?v=0.4.1">
 </head>
 <body>
 
@@ -398,6 +398,71 @@
   </div>
 </div>
 
+<!-- Modal Despesa rápida (comprobante + pagamento em 1 passo) -->
+<div class="overlay" id="modalRapida">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">⚡ Despesa rápida</span>
+      <button class="btn-x" id="btnCloseRapida">×</button>
+    </div>
+    <div class="field-hint" style="margin-bottom:8px">Cria comprobante já marcado como pago. Útil quando não há fatura formal.</div>
+
+    <label>Fornecedor <span class="req">*</span></label>
+    <select id="rfFornecedor">
+      <option value="">Selecionar...</option>
+    </select>
+
+    <label>Descrição <span class="req">*</span></label>
+    <input type="text" id="rfDescricao" placeholder="Ex: Nafta moto limpeza, propina Aki Tem">
+
+    <div class="row-2">
+      <div>
+        <label>Valor (R$) <span class="req">*</span></label>
+        <input type="number" id="rfValor" step="0.01" min="0" placeholder="0,00">
+      </div>
+      <div>
+        <label>Data <span class="req">*</span></label>
+        <input type="date" id="rfData">
+        <div class="field-hint">Serve como mês ref. e data pagto.</div>
+      </div>
+    </div>
+
+    <div class="row-2">
+      <div>
+        <label>Categoria <span class="req">*</span></label>
+        <select id="rfCategoria">
+          <option value="">Selecionar...</option>
+        </select>
+      </div>
+      <div>
+        <label>Centro de custo <span class="req">*</span></label>
+        <select id="rfCentroCusto">
+          <option value="geral">Geral</option>
+          <option value="lofts">Lofts</option>
+          <option value="casa_nordestina">Casa Nordestina</option>
+          <option value="consorcio">Consórcio</option>
+        </select>
+      </div>
+    </div>
+
+    <label>Meio de pagamento <span class="req">*</span></label>
+    <select id="rfMeio">
+      <option value="dinheiro">Dinheiro</option>
+      <option value="banco_inter">Banco Inter · LG</option>
+      <option value="banco_bradesco">Bradesco</option>
+      <option value="banco_itau">Itaú</option>
+      <option value="cartao_corp">Cartão corp.</option>
+      <option value="pix">Pix</option>
+      <option value="cripto">Cripto</option>
+      <option value="outro">Outro</option>
+    </select>
+
+    <div class="modal-footer">
+      <button class="btn-primary" id="btnSaveRapida">Registrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Categoria (criar/editar) -->
 <div class="overlay" id="modalCat">
   <div class="modal modal-sm">
@@ -463,6 +528,11 @@
     <!-- ── TAB BANDEJA ── -->
     <div class="tab-pane active" id="tabBandeja">
       <div class="kpi-row" id="bandejaKpis"></div>
+
+      <div class="module-actions">
+        <button class="btn-primary" id="btnDespesaRapida">⚡ Despesa rápida (já paga)</button>
+        <div class="field-hint" style="text-align:center;margin-top:4px;color:rgba(255,255,255,0.6)">Para gastos sem fatura (propina, nafta, compra pequena)</div>
+      </div>
 
       <div class="filter-row">
         <select id="bandejaCentroFilter" class="filter-select">
@@ -559,6 +629,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.4.0"></script>
+<script src="app.js?v=0.4.1"></script>
 </body>
 </html>

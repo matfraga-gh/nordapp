@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.4.0 · Módulo Pagos (Bandeja + Realizados + Conta) · 2026-11-24");
+console.log("NORDAPP v0.4.1 · Pagos + Despesa rápida (Bandeja + Realizados + Conta) · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.4.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.4.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -1679,6 +1679,92 @@ async function goToPagos(){
   }
 }
 
+// ─── Modal Despesa rápida ───
+function openRapidaModal(){
+  if(!canEditComps()){ showToast("Sem permissão"); return; }
+  // Popular selects
+  var fOpts = _allFornecedores.slice().sort(function(a,b){ return (a.nome||"").localeCompare(b.nome||""); })
+    .map(function(f){ return '<option value="'+f.id+'">'+escapeHtml(f.nome)+'</option>'; }).join("");
+  document.getElementById("rfFornecedor").innerHTML = '<option value="">Selecionar...</option>' + fOpts;
+  var cOpts = _allCategorias.map(function(c){ return '<option value="'+c.id+'">'+escapeHtml(c.nome)+'</option>'; }).join("");
+  document.getElementById("rfCategoria").innerHTML = '<option value="">Selecionar...</option>' + cOpts;
+
+  document.getElementById("rfDescricao").value = "";
+  document.getElementById("rfValor").value = "";
+  document.getElementById("rfData").value = new Date().toISOString().slice(0,10);
+  document.getElementById("rfCentroCusto").value = "geral";
+  document.getElementById("rfMeio").value = "dinheiro";
+  document.getElementById("rfFornecedor").value = "";
+  document.getElementById("rfCategoria").value = "";
+
+  document.getElementById("modalRapida").classList.add("open");
+}
+function closeRapidaModal(){
+  document.getElementById("modalRapida").classList.remove("open");
+}
+
+async function saveRapida(){
+  if(!canEditComps()){ showToast("Sem permissão"); return; }
+  var fornId = document.getElementById("rfFornecedor").value;
+  var desc   = document.getElementById("rfDescricao").value.trim();
+  var valor  = parseFloat(document.getElementById("rfValor").value);
+  var data   = document.getElementById("rfData").value;
+  var catId  = document.getElementById("rfCategoria").value;
+  var centro = document.getElementById("rfCentroCusto").value;
+  var meio   = document.getElementById("rfMeio").value;
+
+  if(!fornId){ showToast("Selecione fornecedor"); return; }
+  if(!desc){ showToast("Descrição obrigatória"); return; }
+  if(!valor || valor <= 0){ showToast("Valor inválido"); return; }
+  if(!data){ showToast("Data obrigatória"); return; }
+  if(!catId){ showToast("Selecione categoria"); return; }
+  if(!meio){ showToast("Selecione meio"); return; }
+
+  var now = new Date().toISOString();
+  // 1) Criar comprobante já pago
+  var compPayload = {
+    descricao: desc,
+    fornecedor_id: Number(fornId),
+    categoria_dre_id: Number(catId),
+    centro_custo: centro,
+    data_competencia: data,
+    data_pagamento: data,
+    valor_total: valor,
+    valor_pago: valor,
+    estado: 'pago',
+    meio_pagamento: meio,
+    observacoes: '[Despesa rápida]',
+    created_by: currentUser.username || "system",
+    updated_at: now
+  };
+  var created = await api("comprobantes", "POST", compPayload);
+  if(!created){ showToast("Erro ao criar comprobante"); return; }
+  var compRow = Array.isArray(created) ? created[0] : created;
+
+  // 2) Registrar pagamento no histórico
+  if(compRow && compRow.id){
+    await api("pagamentos", "POST", {
+      comprobante_id: compRow.id,
+      valor: valor,
+      data_pagamento: data,
+      meio_pagamento: meio,
+      observacoes: '[Despesa rápida]',
+      created_by: currentUser.username || "system"
+    });
+  }
+
+  showToast("Despesa registrada ✓");
+  closeRapidaModal();
+  // Refresh ativo
+  await loadComprobantes();
+  if(document.getElementById("viewPagos").classList.contains("active")){
+    await loadPagamentos();
+    populateBandejaFornSelect();
+    populateRealFornSelect();
+    renderPagAtivo();
+  }
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -1799,6 +1885,16 @@ function init(){
   });
   var btnExpP = document.getElementById("btnExportPagamentos");
   if(btnExpP) btnExpP.addEventListener("click", exportPagamentosExcel);
+
+  // Despesa rápida
+  var btnRap = document.getElementById("btnDespesaRapida");
+  if(btnRap) btnRap.addEventListener("click", openRapidaModal);
+  var btnCloseR = document.getElementById("btnCloseRapida");
+  if(btnCloseR) btnCloseR.addEventListener("click", closeRapidaModal);
+  var btnSaveR = document.getElementById("btnSaveRapida");
+  if(btnSaveR) btnSaveR.addEventListener("click", saveRapida);
+  var mr = document.getElementById("modalRapida");
+  if(mr) mr.addEventListener("click", function(e){ if(e.target === mr) closeRapidaModal(); });
 
   // Modal pagamento
   var btnClosePag = document.getElementById("btnClosePag");
