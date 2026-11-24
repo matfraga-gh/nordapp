@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.5.2 · DRE estilo AZUCAPP · 2026-11-24");
+console.log("NORDAPP v0.6.0 · Reportes de Ingresos (ocupação + canal + apto) · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.5.2 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.6.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -349,6 +349,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "categorias"){ goToCategorias(); return; }
   if(moduleId === "pagos"){ goToPagos(); return; }
   if(moduleId === "painel_resultados"){ goToDRE(); return; }
+  if(moduleId === "ingresos"){ goToIngresos(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -1776,7 +1777,9 @@ var _dreReservasSchema = null; // {campoData, campoValor, campoStatus}
 function dreFirstDay(y, m){ return new Date(y, m, 1).toISOString().slice(0,10); }
 function dreLastDay(y, m){ return new Date(y, m+1, 0).toISOString().slice(0,10); }
 function dreMesLabel(y, m){
-  return new Date(y, m, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+  var s = new Date(y, m, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+  // Capitalizar só o mês, deixar " de " em minúscula
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function dreGoMes(delta){
@@ -2093,6 +2096,256 @@ async function goToDRE(){
   renderDRE();
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO REPORTE DE INGRESOS
+// ═════════════════════════════════════════════════════════════════════
+var UNIDADES_TOTAL = 10; // 9 lofts + Casa Nordestina
+var _ingReservas = null;
+
+function getIngPeriodo(){
+  return {
+    ini: document.getElementById("ingDataIni").value || null,
+    fim: document.getElementById("ingDataFim").value || null
+  };
+}
+
+function aplicarIngPeriodoPreset(preset){
+  var hoje = new Date();
+  var y = hoje.getFullYear(), m = hoje.getMonth();
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var ini = "", fim = "";
+  if(preset === "mes_atual"){ ini = iso(new Date(y,m,1)); fim = iso(new Date(y,m+1,0)); }
+  else if(preset === "mes_anterior"){ ini = iso(new Date(y,m-1,1)); fim = iso(new Date(y,m,0)); }
+  else if(preset === "ano_atual"){ ini = iso(new Date(y,0,1)); fim = iso(new Date(y,11,31)); }
+  document.getElementById("ingDataIni").value = ini;
+  document.getElementById("ingDataFim").value = fim;
+  document.querySelectorAll(".chip-btn[data-ing-periodo]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.ingPeriodo === preset);
+  });
+  renderIngresos();
+}
+
+function noitesEntre(d1, d2){
+  // noites = diff em dias
+  var a = new Date(d1 + "T00:00:00");
+  var b = new Date(d2 + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+function diasEntre(d1, d2){
+  // dias incluindo ambos
+  return noitesEntre(d1, d2) + 1;
+}
+
+function reservaReceita(r){
+  return reservaReceitaPrincipal(r) + reservaReceitaAdicional(r) - reservaDevolucao(r);
+}
+
+function filtrarIngReservasNoPeriodo(rows, per){
+  // Usa checkin como ancla
+  return rows.filter(function(r){
+    if(!r.checkin) return false;
+    var ck = String(r.checkin).slice(0,10);
+    if(per.ini && ck < per.ini) return false;
+    if(per.fim && ck > per.fim) return false;
+    var st = String(r.status || "").toLowerCase();
+    if(st.indexOf("cancel") >= 0) return false;
+    return true;
+  });
+}
+
+async function renderIngresos(){
+  var per = getIngPeriodo();
+  var el = document.getElementById("ingBody");
+
+  // Cache reservas (usa mesma função do DRE)
+  var rsvRes = await loadReservasDRE();
+  if(!rsvRes.ok){
+    el.innerHTML = '<div class="dre-warning">⚠ Não consegui ler reservas.</div>';
+    return;
+  }
+  _ingReservas = rsvRes.rows;
+
+  var list = filtrarIngReservasNoPeriodo(_ingReservas, per);
+
+  // KPIs
+  var receita = 0;
+  var noitesOcupadas = 0;
+  var hospedesCount = 0;
+
+  list.forEach(function(r){
+    receita += reservaReceita(r);
+    if(r.checkin && r.checkout){
+      var n = noitesEntre(r.checkin, r.checkout);
+      if(n > 0) noitesOcupadas += n;
+    }
+    // hospedes aproximado
+    // fica fora por enquanto (seria bom somar adultos+criancas)
+  });
+
+  // Noites disponíveis = unidades × dias do período
+  var diasPeriodo = 0;
+  if(per.ini && per.fim){
+    diasPeriodo = diasEntre(per.ini, per.fim);
+  }
+  var noitesDisponiveis = diasPeriodo * UNIDADES_TOTAL;
+  var ocupacao = noitesDisponiveis > 0 ? (noitesOcupadas / noitesDisponiveis) * 100 : 0;
+  var ticketMedio = list.length > 0 ? receita / list.length : 0;
+  var noiteMedia  = noitesOcupadas > 0 ? receita / noitesOcupadas : 0;
+
+  var kpisEl = document.getElementById("ingKpis");
+  kpisEl.innerHTML =
+    '<div class="ing-kpi hero span2">' +
+      '<div class="ing-kpi-label">Receita bruta</div>' +
+      '<div class="ing-kpi-value">'+fmtBRL(receita)+'</div>' +
+      '<div class="ing-kpi-sub">'+list.length+' reserva'+(list.length!==1?'s':'')+' · '+noitesOcupadas+' noites</div>' +
+    '</div>' +
+    '<div class="ing-kpi">' +
+      '<div class="ing-kpi-label">Ticket médio</div>' +
+      '<div class="ing-kpi-value">'+fmtBRL(ticketMedio)+'</div>' +
+      '<div class="ing-kpi-sub">por reserva</div>' +
+    '</div>' +
+    '<div class="ing-kpi">' +
+      '<div class="ing-kpi-label">Diária média</div>' +
+      '<div class="ing-kpi-value">'+fmtBRL(noiteMedia)+'</div>' +
+      '<div class="ing-kpi-sub">por noite</div>' +
+    '</div>' +
+    '<div class="ing-kpi span2">' +
+      '<div class="ing-kpi-label">Ocupação</div>' +
+      '<div class="ing-kpi-value">'+ocupacao.toFixed(1)+'%</div>' +
+      '<div class="ing-kpi-sub">'+noitesOcupadas+' / '+noitesDisponiveis+' noites · '+UNIDADES_TOTAL+' unidades</div>' +
+      '<div class="ing-ocup-bar"><div class="ing-ocup-bar-fill" style="width:'+Math.min(100,ocupacao).toFixed(1)+'%"></div></div>' +
+    '</div>';
+
+  // Breakdown por canal
+  var canalMap = {};
+  list.forEach(function(r){
+    var c = (r.canal || "Direta").trim() || "Direta";
+    if(!canalMap[c]) canalMap[c] = { reservas: 0, noites: 0, receita: 0 };
+    canalMap[c].reservas++;
+    if(r.checkin && r.checkout){
+      var n = noitesEntre(r.checkin, r.checkout);
+      if(n > 0) canalMap[c].noites += n;
+    }
+    canalMap[c].receita += reservaReceita(r);
+  });
+  var canalArr = Object.keys(canalMap).map(function(k){ return { canal:k, ...canalMap[k] }; })
+    .sort(function(a,b){ return b.receita - a.receita; });
+
+  var canalHtml = '<div class="ing-table">' +
+    '<div class="ing-table-title">Por canal</div>' +
+    '<div class="ing-table-row header">' +
+      '<div>Canal</div><div>Rsv</div><div>Noites</div><div>Receita</div><div>%</div>' +
+    '</div>';
+  canalArr.forEach(function(c){
+    var pct = receita > 0 ? (c.receita / receita) * 100 : 0;
+    canalHtml += '<div class="ing-table-row">' +
+      '<div>'+escapeHtml(c.canal)+'</div>' +
+      '<div>'+c.reservas+'</div>' +
+      '<div>'+c.noites+'</div>' +
+      '<div>'+fmtMoney(c.receita)+'</div>' +
+      '<div>'+pct.toFixed(0)+'%</div>' +
+    '</div>';
+  });
+  canalHtml += '<div class="ing-table-row total">' +
+    '<div>Total</div><div>'+list.length+'</div><div>'+noitesOcupadas+'</div><div>'+fmtMoney(receita)+'</div><div>100%</div>' +
+  '</div></div>';
+
+  // Breakdown por apto
+  // Carrega aptos (campo apto da reserva)
+  var aptoMap = {};
+  _ingReservas.forEach(function(r){
+    // precisa buscar o apto; re-fetch para incluir 'apto'
+  });
+  // Re-fetch com apto incluido (já no cache? não — loadReservasDRE só traz certos campos)
+  var aptoRes = await api("reservas?select=id,apto,checkin,checkout,total,adic_valor,svc_cozinheira,svc_early_checkin,svc_late_checkout,svc_outros_valor,devolucao,status,canal&limit=5000");
+  if(aptoRes){
+    var aptoList = aptoRes.filter(function(r){
+      if(!r.checkin) return false;
+      var ck = String(r.checkin).slice(0,10);
+      if(per.ini && ck < per.ini) return false;
+      if(per.fim && ck > per.fim) return false;
+      var st = String(r.status || "").toLowerCase();
+      if(st.indexOf("cancel") >= 0) return false;
+      return true;
+    });
+    aptoList.forEach(function(r){
+      var ap = (r.apto || "—").trim() || "—";
+      if(!aptoMap[ap]) aptoMap[ap] = { reservas: 0, noites: 0, receita: 0 };
+      aptoMap[ap].reservas++;
+      if(r.checkin && r.checkout){
+        var n = noitesEntre(r.checkin, r.checkout);
+        if(n > 0) aptoMap[ap].noites += n;
+      }
+      aptoMap[ap].receita += reservaReceita(r);
+    });
+  }
+  var aptoArr = Object.keys(aptoMap).map(function(k){ return { apto:k, ...aptoMap[k] }; })
+    .sort(function(a,b){ return b.receita - a.receita; });
+
+  var aptoHtml = '<div class="ing-table">' +
+    '<div class="ing-table-title">Por apto</div>' +
+    '<div class="ing-table-row header">' +
+      '<div>Apto</div><div>Rsv</div><div>Noites</div><div>Receita</div><div>Ocup</div>' +
+    '</div>';
+  aptoArr.forEach(function(a){
+    var ocupApto = diasPeriodo > 0 ? (a.noites / diasPeriodo) * 100 : 0;
+    aptoHtml += '<div class="ing-table-row">' +
+      '<div>'+escapeHtml(a.apto)+'</div>' +
+      '<div>'+a.reservas+'</div>' +
+      '<div>'+a.noites+'</div>' +
+      '<div>'+fmtMoney(a.receita)+'</div>' +
+      '<div>'+ocupApto.toFixed(0)+'%</div>' +
+    '</div>';
+  });
+  aptoHtml += '</div>';
+
+  var html = canalHtml + aptoHtml;
+  if(list.length === 0){
+    html = '<div class="empty"><div class="empty-icon">📈</div>Sem reservas no período.</div>';
+  }
+  el.innerHTML = html;
+  document.getElementById("ingSubtitle").textContent = list.length + " reserva" + (list.length !== 1 ? "s" : "") + " no período";
+}
+
+function exportIngresosExcel(){
+  if(typeof XLSX === 'undefined' || !_ingReservas){ showToast("Sem dados"); return; }
+  var per = getIngPeriodo();
+  var list = filtrarIngReservasNoPeriodo(_ingReservas, per);
+  if(list.length === 0){ showToast("Sem dados"); return; }
+
+  var rows = list.map(function(r){
+    var n = (r.checkin && r.checkout) ? noitesEntre(r.checkin, r.checkout) : 0;
+    return {
+      "Check-in": r.checkin || "",
+      "Check-out": r.checkout || "",
+      "Noites": n,
+      "Canal": r.canal || "",
+      "Status": r.status || "",
+      "Total": Number(r.total) || 0,
+      "Adicionais": reservaReceitaAdicional(r),
+      "Devolução": Number(r.devolucao) || 0,
+      "Receita líquida": reservaReceita(r)
+    };
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:12},{wch:8},{wch:16},{wch:14},{wch:12},{wch:12},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, "Reservas");
+  var tag = (per.ini && per.fim) ? (per.ini + "_a_" + per.fim) : new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "NORDAPP_Ingresos_" + tag + ".xlsx");
+  showToast("Excel baixado ✓");
+}
+
+async function goToIngresos(){
+  showView("viewIngresos");
+  if(!document.getElementById("ingDataIni").value){
+    aplicarIngPeriodoPreset("mes_atual");
+  } else {
+    renderIngresos();
+  }
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -2223,6 +2476,20 @@ function init(){
   if(chkCons) chkCons.addEventListener("change", renderDRE);
   var btnExpDRE = document.getElementById("btnExportDRE");
   if(btnExpDRE) btnExpDRE.addEventListener("click", exportDREExcel);
+
+  // ─── Ingresos ───
+  document.querySelectorAll(".chip-btn[data-ing-periodo]").forEach(function(b){
+    b.addEventListener("click", function(){ aplicarIngPeriodoPreset(b.dataset.ingPeriodo); });
+  });
+  ["ingDataIni","ingDataFim"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", function(){
+      document.querySelectorAll(".chip-btn[data-ing-periodo]").forEach(function(b){ b.classList.remove("active"); });
+      renderIngresos();
+    });
+  });
+  var btnExpIng = document.getElementById("btnExportIng");
+  if(btnExpIng) btnExpIng.addEventListener("click", exportIngresosExcel);
 
   // Despesa rápida
   var btnRap = document.getElementById("btnDespesaRapida");

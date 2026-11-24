@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=0.5.2">
+<link rel="stylesheet" href="styles.css?v=0.6.0">
 </head>
 <body>
 
@@ -492,6 +492,43 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO REPORTE DE INGRESOS ══════════════════════════════════════ -->
+<div id="viewIngresos" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubReportes">← Reportes</button>
+      <div class="module-title-block">
+        <div class="module-title">📈 Ingresos</div>
+        <div class="module-subtitle" id="ingSubtitle">Vendas e ocupação</div>
+      </div>
+    </div>
+
+    <div class="periodo-row">
+      <div class="periodo-presets">
+        <button class="chip-btn" data-ing-periodo="mes_atual">Mês atual</button>
+        <button class="chip-btn" data-ing-periodo="mes_anterior">Mês anterior</button>
+        <button class="chip-btn" data-ing-periodo="ano_atual">Ano</button>
+        <button class="chip-btn" data-ing-periodo="tudo">Tudo</button>
+      </div>
+      <div class="periodo-datas">
+        <input type="date" id="ingDataIni" class="filter-input">
+        <span class="periodo-sep">até</span>
+        <input type="date" id="ingDataFim" class="filter-input">
+      </div>
+    </div>
+
+    <div class="module-actions">
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn-ghost" id="btnExportIng">⬇ Descargar Excel</button>
+      </div>
+    </div>
+
+    <div id="ingKpis" class="ing-kpis"></div>
+
+    <div id="ingBody"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
 <!-- ══ MÓDULO PAINEL DE RESULTADOS (DRE) ═══════════════════════════════ -->
 <div id="viewDRE" class="view">
   <div class="content">
@@ -661,6 +698,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.5.2"></script>
+<script src="app.js?v=0.6.0"></script>
 </body>
 </html>
