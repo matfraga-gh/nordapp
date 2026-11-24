@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.7.0 · Drill-down DRE + Comparativo + Caixa · 2026-11-24");
+console.log("NORDAPP v0.7.1 · Egresos + comp-item compacto · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.7.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.7.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -351,6 +351,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "painel_resultados"){ goToDRE(); return; }
   if(moduleId === "ingresos"){ goToIngresos(); return; }
   if(moduleId === "caixa"){ goToCaixa(); return; }
+  if(moduleId === "egresos"){ goToEgresos(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -809,33 +810,32 @@ function renderCompList(){
     var saldo = valorTotal - valorPago;
     var estado = c.estado || 'pendente';
 
-    // Layout AZUCAPP-style vertical
-    var lines = '';
-    lines += '<div class="comp-item-line">Mês ref. <b>'+fmtMesRef(c.data_competencia)+'</b></div>';
-    if(c.data_vencimento){
-      lines += '<div class="comp-item-line">Vence <b>'+fmtDate(c.data_vencimento)+'</b></div>';
-    }
-    if(c.data_pagamento && estado === 'pago'){
-      lines += '<div class="comp-item-line">Pago em <b>'+fmtDate(c.data_pagamento)+'</b></div>';
-    }
-    lines += '<div class="comp-item-line valor">'+fmtBRL(valorTotal)+'</div>';
-    if(estado === 'pago_parcial'){
-      lines += '<div class="comp-item-line saldo">Saldo: '+fmtBRL(saldo)+'</div>';
+    // Layout compacto: valor + datas em linha única
+    var valorHtml = (estado === 'pago_parcial')
+      ? fmtBRL(saldo) + ' <span style="font-size:11px;opacity:0.6;font-weight:400">/ ' + fmtBRL(valorTotal) + '</span>'
+      : fmtBRL(valorTotal);
+
+    var dateInfo = [];
+    if(c.data_competencia) dateInfo.push('ref ' + fmtMesRef(c.data_competencia));
+    if(estado === 'pago' && c.data_pagamento){
+      dateInfo.push('pago ' + fmtDate(c.data_pagamento));
+    } else if(c.data_vencimento){
+      dateInfo.push('vence ' + fmtDate(c.data_vencimento));
     }
 
+    var lines = '<div class="comp-item-line valor">'+valorHtml+'</div>' +
+                '<div class="comp-item-line">'+dateInfo.join(' · ')+'</div>';
+
+    // Actions: só mostra se tem ação relevante (pagamento pendente ou anexo)
     var actionsHtml = '';
-    if(canEdit && estado !== 'anulado'){
+    var needsAction = canEdit && estado !== 'anulado' && estado !== 'pago';
+    if(needsAction){
       actionsHtml = '<div class="comp-item-actions">';
-      if(estado !== 'pago'){
-        actionsHtml += '<button class="primary" data-pag="'+c.id+'">💵 Pagamento</button>';
-      }
-      if(c.anexo_url){
-        actionsHtml += '<button data-anexo="'+c.anexo_url+'" title="Ver anexo">📎</button>';
-      }
-      actionsHtml += '<button data-edit="'+c.id+'" title="Editar">✎</button>';
+      actionsHtml += '<button class="primary" data-pag="'+c.id+'">💵 Pagar</button>';
+      if(c.anexo_url) actionsHtml += '<button data-anexo="'+c.anexo_url+'" title="Anexo">📎</button>';
       actionsHtml += '</div>';
     } else if(c.anexo_url){
-      actionsHtml = '<div class="comp-item-actions"><button data-anexo="'+c.anexo_url+'">📎 Ver anexo</button></div>';
+      actionsHtml = '<div class="comp-item-actions"><button data-anexo="'+c.anexo_url+'" title="Anexo">📎</button></div>';
     }
 
     return '<div class="comp-item estado-'+estado+'">' +
@@ -2701,6 +2701,231 @@ async function goToCaixa(){
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO EGRESOS · Análise granular de gastos
+// ═════════════════════════════════════════════════════════════════════
+function getEgrPeriodo(){
+  return {
+    ini: document.getElementById("egrDataIni").value || null,
+    fim: document.getElementById("egrDataFim").value || null
+  };
+}
+function aplicarEgrPeriodoPreset(preset){
+  var hoje = new Date();
+  var y = hoje.getFullYear(), m = hoje.getMonth();
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var ini = "", fim = "";
+  if(preset === "mes_atual"){ ini = iso(new Date(y,m,1)); fim = iso(new Date(y,m+1,0)); }
+  else if(preset === "mes_anterior"){ ini = iso(new Date(y,m-1,1)); fim = iso(new Date(y,m,0)); }
+  else if(preset === "ano_atual"){ ini = iso(new Date(y,0,1)); fim = iso(new Date(y,11,31)); }
+  document.getElementById("egrDataIni").value = ini;
+  document.getElementById("egrDataFim").value = fim;
+  document.querySelectorAll(".chip-btn[data-egr-periodo]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.egrPeriodo === preset);
+  });
+  renderEgresos();
+}
+
+function compsEgrFiltrados(){
+  var per = getEgrPeriodo();
+  var incluirConsorcio = document.getElementById("egrIncluirConsorcio").checked;
+  return _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre) return true; // sem categoria tb é despesa (vai cair em Outros)
+    // excluir receitas
+    if(c.categorias_dre.grupo === 'receita') return false;
+    if(!c.data_competencia) return false;
+    if(per.ini && c.data_competencia < per.ini) return false;
+    if(per.fim && c.data_competencia > per.fim) return false;
+    if(!incluirConsorcio && c.centro_custo === 'consorcio') return false;
+    return true;
+  });
+}
+
+async function renderEgresos(){
+  var el = document.getElementById("egrBody");
+  el.innerHTML = '<div class="loading">Carregando...</div>';
+  if(_allComps.length === 0) await loadComprobantes();
+
+  var list = compsEgrFiltrados();
+  var total = 0; list.forEach(function(c){ total += Number(c.valor_total) || 0; });
+  var ticketMedio = list.length > 0 ? total / list.length : 0;
+
+  // ── KPIs ──
+  document.getElementById("egrKpis").innerHTML =
+    '<div class="ing-kpi hero span2">' +
+      '<div class="ing-kpi-label">Total gasto</div>' +
+      '<div class="ing-kpi-value">'+fmtBRL(total)+'</div>' +
+      '<div class="ing-kpi-sub">'+list.length+' comprobante'+(list.length!==1?'s':'')+'</div>' +
+    '</div>' +
+    '<div class="ing-kpi">' +
+      '<div class="ing-kpi-label">Ticket médio</div>' +
+      '<div class="ing-kpi-value">'+fmtBRL(ticketMedio)+'</div>' +
+    '</div>' +
+    '<div class="ing-kpi">' +
+      '<div class="ing-kpi-label">Maior gasto</div>' +
+      '<div class="ing-kpi-value">'+fmtBRL(list.length ? Math.max.apply(null, list.map(function(c){return Number(c.valor_total)||0;})) : 0)+'</div>' +
+    '</div>';
+
+  // ── Por categoria DRE ──
+  var porCat = {};
+  list.forEach(function(c){
+    var cat = c.categorias_dre ? c.categorias_dre.nome : "Sem categoria";
+    porCat[cat] = (porCat[cat] || 0) + (Number(c.valor_total) || 0);
+  });
+  var catArr = Object.keys(porCat).map(function(k){ return { nome:k, valor:porCat[k] }; })
+    .sort(function(a,b){ return b.valor - a.valor; });
+
+  var catHtml = '<div class="ing-table"><div class="ing-table-title">Por categoria</div>' +
+    '<div class="ing-table-row header"><div>Categoria</div><div></div><div></div><div>R$</div><div>%</div></div>';
+  catArr.forEach(function(k){
+    var pct = total > 0 ? (k.valor / total) * 100 : 0;
+    catHtml += '<div class="ing-table-row" data-egr-cat="'+escapeHtml(k.nome)+'">' +
+      '<div>'+escapeHtml(k.nome)+'</div><div></div><div></div><div>'+fmtMoney(k.valor)+'</div><div>'+pct.toFixed(0)+'%</div>' +
+    '</div>';
+  });
+  catHtml += '<div class="ing-table-row total"><div>Total</div><div></div><div></div><div>'+fmtMoney(total)+'</div><div>100%</div></div></div>';
+
+  // ── Por fornecedor (top 15) ──
+  var porForn = {};
+  list.forEach(function(c){
+    var nome = (c.fornecedores && c.fornecedores.nome) ? c.fornecedores.nome : "— sem fornecedor —";
+    if(!porForn[nome]) porForn[nome] = { valor: 0, qtd: 0 };
+    porForn[nome].valor += Number(c.valor_total) || 0;
+    porForn[nome].qtd++;
+  });
+  var fornArr = Object.keys(porForn).map(function(k){ return { nome:k, valor:porForn[k].valor, qtd:porForn[k].qtd }; })
+    .sort(function(a,b){ return b.valor - a.valor; }).slice(0, 15);
+
+  var fornHtml = '<div class="ing-table"><div class="ing-table-title">Top fornecedores</div>' +
+    '<div class="ing-table-row header"><div>Fornecedor</div><div>N</div><div></div><div>R$</div><div>%</div></div>';
+  fornArr.forEach(function(k){
+    var pct = total > 0 ? (k.valor / total) * 100 : 0;
+    fornHtml += '<div class="ing-table-row">' +
+      '<div>'+escapeHtml(k.nome)+'</div><div>'+k.qtd+'</div><div></div><div>'+fmtMoney(k.valor)+'</div><div>'+pct.toFixed(0)+'%</div>' +
+    '</div>';
+  });
+  fornHtml += '</div>';
+
+  // ── Top 10 comprobantes maiores (outliers) ──
+  var outliers = list.slice().sort(function(a,b){ return Number(b.valor_total) - Number(a.valor_total); }).slice(0, 10);
+  var outHtml = '<div class="ing-table"><div class="ing-table-title">Top 10 maiores</div>' +
+    '<div class="ing-table-row header"><div>Comprobante</div><div></div><div></div><div>R$</div><div></div></div>';
+  outliers.forEach(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "—";
+    var label = forn + ' · ' + (c.descricao || '').slice(0, 30);
+    outHtml += '<div class="ing-table-row" data-egr-comp="'+c.id+'">' +
+      '<div>'+escapeHtml(label)+'</div><div></div><div></div><div>'+fmtMoney(c.valor_total)+'</div><div></div>' +
+    '</div>';
+  });
+  outHtml += '</div>';
+
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📉</div>Sem gastos no período.</div>';
+    return;
+  }
+
+  el.innerHTML = catHtml + fornHtml + outHtml;
+  document.getElementById("egrSubtitle").textContent = list.length + " comprobante" + (list.length !== 1 ? "s" : "") + " · " + fmtBRL(total);
+
+  // Drill-down em click na categoria
+  el.querySelectorAll("[data-egr-cat]").forEach(function(row){
+    row.addEventListener("click", function(){
+      _dreMes = _dreMes || { y: new Date().getFullYear(), m: new Date().getMonth() };
+      // Usa drill do DRE mas com o período de Egresos
+      abrirDrillEgresos(row.dataset.egrCat);
+    });
+  });
+  el.querySelectorAll("[data-egr-comp]").forEach(function(row){
+    row.addEventListener("click", function(){
+      openCompModal(row.dataset.egrComp);
+    });
+  });
+}
+
+function abrirDrillEgresos(catNome){
+  var per = getEgrPeriodo();
+  var incluirConsorcio = document.getElementById("egrIncluirConsorcio").checked;
+  var list = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre) return catNome === "Sem categoria";
+    if(c.categorias_dre.nome !== catNome) return false;
+    if(!c.data_competencia) return false;
+    if(per.ini && c.data_competencia < per.ini) return false;
+    if(per.fim && c.data_competencia > per.fim) return false;
+    if(!incluirConsorcio && c.centro_custo === 'consorcio') return false;
+    return true;
+  });
+  list.sort(function(a,b){ return Number(b.valor_total) - Number(a.valor_total); });
+
+  var total = 0; list.forEach(function(c){ total += Number(c.valor_total)||0; });
+  var subtitle = per.ini && per.fim ? (fmtDate(per.ini) + " até " + fmtDate(per.fim)) : "Tudo";
+
+  document.getElementById("drillTitle").textContent = catNome;
+  document.getElementById("drillInfo").textContent = subtitle + " · " + list.length + " comprobante" + (list.length !== 1 ? "s" : "");
+
+  var html = list.map(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "—";
+    return '<div class="drill-row" data-comp="'+c.id+'">' +
+             '<div class="drill-data">'+fmtDate(c.data_competencia)+'</div>' +
+             '<div class="drill-desc">'+escapeHtml(c.descricao||"—")+'<span class="forne">'+escapeHtml(forn)+'</span></div>' +
+             '<div class="drill-valor">'+fmtBRL(c.valor_total)+'</div>' +
+           '</div>';
+  }).join("");
+  html += '<div class="drill-total"><span>Total</span><span>'+fmtBRL(total)+'</span></div>';
+  document.getElementById("drillList").innerHTML = html;
+
+  document.getElementById("drillList").querySelectorAll("[data-comp]").forEach(function(r){
+    r.addEventListener("click", function(){
+      closeDrillModal();
+      openCompModal(r.dataset.comp);
+    });
+  });
+  document.getElementById("modalDrill").classList.add("open");
+}
+
+function exportEgresosExcel(){
+  if(typeof XLSX === 'undefined'){ showToast("XLSX não carregou"); return; }
+  var list = compsEgrFiltrados();
+  if(list.length === 0){ showToast("Sem dados"); return; }
+
+  var rows = list.map(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "";
+    var cat  = c.categorias_dre ? c.categorias_dre.nome : "";
+    var grupo = c.categorias_dre ? c.categorias_dre.grupo : "";
+    return {
+      "Mês ref.":       c.data_competencia || "",
+      "Pago em":        c.data_pagamento || "",
+      "Fornecedor":     forn,
+      "Descrição":      c.descricao || "",
+      "Categoria":      cat,
+      "Grupo DRE":      GRUPO_LABEL[grupo] || grupo,
+      "Centro custo":   CENTRO_LABEL[c.centro_custo] || c.centro_custo || "",
+      "Valor":          Number(c.valor_total) || 0,
+      "Meio pagto":     MEIO_LABEL[c.meio_pagamento] || c.meio_pagamento || "",
+      "Estado":         ESTADO_LABEL[c.estado] || c.estado || ""
+    };
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:12},{wch:26},{wch:32},{wch:26},{wch:18},{wch:14},{wch:12},{wch:16},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws, "Egresos");
+  var per = getEgrPeriodo();
+  var tag = per.ini && per.fim ? (per.ini + "_a_" + per.fim) : new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "NORDAPP_Egresos_" + tag + ".xlsx");
+  showToast("Excel baixado ✓");
+}
+
+async function goToEgresos(){
+  showView("viewEgresos");
+  if(!document.getElementById("egrDataIni").value){
+    aplicarEgrPeriodoPreset("mes_atual");
+  } else {
+    renderEgresos();
+  }
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -2839,6 +3064,20 @@ function init(){
   if(btnCloseDrill) btnCloseDrill.addEventListener("click", closeDrillModal);
   var md = document.getElementById("modalDrill");
   if(md) md.addEventListener("click", function(e){ if(e.target === md) closeDrillModal(); });
+
+  // ─── Egresos ───
+  document.querySelectorAll(".chip-btn[data-egr-periodo]").forEach(function(b){
+    b.addEventListener("click", function(){ aplicarEgrPeriodoPreset(b.dataset.egrPeriodo); });
+  });
+  ["egrDataIni","egrDataFim","egrIncluirConsorcio"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", function(){
+      if(id.startsWith("egrData")) document.querySelectorAll(".chip-btn[data-egr-periodo]").forEach(function(b){ b.classList.remove("active"); });
+      renderEgresos();
+    });
+  });
+  var btnExpEgr = document.getElementById("btnExportEgresos");
+  if(btnExpEgr) btnExpEgr.addEventListener("click", exportEgresosExcel);
 
   // ─── Caixa ───
   document.querySelectorAll(".chip-btn[data-caixa-periodo]").forEach(function(b){

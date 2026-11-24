@@ -786,67 +786,78 @@ a { color: var(--ocean); text-decoration: none; }
 /* Comp item vertical estilo AZUCAPP */
 .comp-item {
   position: relative;
-  padding: 14px 14px 12px;
+  padding: 10px 12px 10px;
 }
 .comp-item-title {
   font-weight: 700;
   color: var(--ocean);
-  font-size: 15px;
+  font-size: 14px;
   letter-spacing: -0.1px;
-  line-height: 1.3;
-  padding-right: 100px; /* espaço para chip estado */
+  line-height: 1.25;
+  padding-right: 80px; /* espaço para chip estado */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .comp-item-sub {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text);
-  opacity: 0.7;
-  margin-top: 2px;
-  padding-right: 100px;
+  opacity: 0.6;
+  margin-top: 1px;
+  padding-right: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .comp-item-lines {
-  margin-top: 8px;
+  margin-top: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
 }
 .comp-item-line {
   font-size: 12px;
   color: var(--text);
-  opacity: 0.85;
+  opacity: 0.75;
+  white-space: nowrap;
 }
 .comp-item-line b { font-weight: 600; opacity: 1; color: var(--ocean); }
 .comp-item-line.valor {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text);
   opacity: 1;
-  margin-top: 2px;
   letter-spacing: -0.2px;
+  margin-right: auto;
 }
 .comp-item-line.saldo {
-  font-size: 12px;
+  font-size: 11px;
   color: #b47a0e;
   font-weight: 600;
 }
 .comp-estado-topright {
   position: absolute;
-  top: 12px;
-  right: 14px;
+  top: 10px;
+  right: 12px;
 }
 .comp-item-chips {
   display: flex;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 6px;
   flex-wrap: wrap;
 }
+.comp-item-chips .chip-centro,
+.comp-item-chips .chip-categoria {
+  font-size: 10px;
+  padding: 2px 7px;
+}
 
-/* Actions inline (ícones no estilo AZUCAPP) */
+/* Actions inline compactas - só aparecem se tem ação relevante */
 .comp-item-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--sand-dark);
+  gap: 4px;
+  margin-top: 8px;
   justify-content: flex-end;
 }
 .comp-item-actions button {
@@ -854,12 +865,12 @@ a { color: var(--ocean); text-decoration: none; }
   border: 1px solid var(--sand-dark);
   color: var(--text);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   font-family: var(--font-sans);
-  min-width: 36px;
+  min-width: 30px;
 }
 .comp-item-actions button:hover { background: var(--sand-mid); }
 .comp-item-actions button.primary {

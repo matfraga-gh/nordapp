@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=0.7.0">
+<link rel="stylesheet" href="styles.css?v=0.7.1">
 </head>
 <body>
 
@@ -577,6 +577,46 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO EGRESOS ══════════════════════════════════════════════════ -->
+<div id="viewEgresos" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubReportes">← Reportes</button>
+      <div class="module-title-block">
+        <div class="module-title">📉 Egresos</div>
+        <div class="module-subtitle" id="egrSubtitle">Análise de gastos</div>
+      </div>
+    </div>
+
+    <div class="periodo-row">
+      <div class="periodo-presets">
+        <button class="chip-btn" data-egr-periodo="mes_atual">Mês atual</button>
+        <button class="chip-btn" data-egr-periodo="mes_anterior">Mês anterior</button>
+        <button class="chip-btn" data-egr-periodo="ano_atual">Ano</button>
+        <button class="chip-btn" data-egr-periodo="tudo">Tudo</button>
+      </div>
+      <div class="periodo-datas">
+        <input type="date" id="egrDataIni" class="filter-input">
+        <span class="periodo-sep">até</span>
+        <input type="date" id="egrDataFim" class="filter-input">
+      </div>
+    </div>
+
+    <div class="module-actions">
+      <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;color:rgba(255,255,255,0.75);font-weight:500">
+          <input type="checkbox" id="egrIncluirConsorcio" style="margin-right:4px;vertical-align:middle">
+          Incluir Consórcio
+        </label>
+        <button class="btn-ghost" id="btnExportEgresos">⬇ Descargar Excel</button>
+      </div>
+    </div>
+
+    <div id="egrKpis" class="ing-kpis"></div>
+    <div id="egrBody"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
 <!-- ══ MÓDULO CAIXA ════════════════════════════════════════════════════ -->
 <div id="viewCaixa" class="view">
   <div class="content">
@@ -747,6 +787,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.7.0"></script>
+<script src="app.js?v=0.7.1"></script>
 </body>
 </html>
