@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.13.3 · DRE comparativo em todas seções · 2026-11-25");
+console.log("NORDAPP v0.13.4 · Caixa portfolio simplificado · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.3 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.4 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -2763,145 +2763,56 @@ function aplicarCaixaPeriodoPreset(preset){
 
 // Mapping: label visible → meios equivalentes + conta de extrato
 var CAIXA_MEIOS = [
-  { label: "Inter LG · Pix",       meios: ['inter_pix','banco_inter'],         extrato_conta: 'inter_lg' },
-  { label: "Bradesco LG · Pix",    meios: ['bradesco_pix','banco_bradesco'],   extrato_conta: 'bradesco_lg' },
-  { label: "Cartão Inter LG",      meios: ['inter_cartao'],                    extrato_conta: null },
-  { label: "Cartão Bradesco LG",   meios: ['bradesco_cartao','cartao_corp'],   extrato_conta: null },
-  { label: "Dinheiro R$",          meios: ['dinheiro_brl','dinheiro'],         extrato_conta: null },
-  { label: "Dinheiro US$",         meios: ['dinheiro_usd'],                    extrato_conta: null },
-  { label: "Dinheiro AR$",         meios: ['dinheiro_ars','transf_ar'],        extrato_conta: null },
-  { label: "Cripto",               meios: ['cripto'],                          extrato_conta: null }
+  { label: "Bradesco LG",          moeda: 'BRL', meios: ['bradesco_pix','banco_bradesco'],   extrato_conta: 'bradesco_lg' },
+  { label: "Inter LG",             moeda: 'BRL', meios: ['inter_pix','banco_inter'],         extrato_conta: 'inter_lg' },
+  { label: "Cielo LG",             moeda: 'BRL', meios: [],                                  extrato_conta: 'cielo_lg' },
+  { label: "Kamipay LG",           moeda: 'BRL', meios: [],                                  extrato_conta: 'kamipay_lg' },
+  { label: "Cartão Inter LG",      moeda: 'BRL', meios: ['inter_cartao'],                    extrato_conta: null },
+  { label: "Cartão Bradesco LG",   moeda: 'BRL', meios: ['bradesco_cartao','cartao_corp'],   extrato_conta: null },
+  { label: "Dinheiro R$",          moeda: 'BRL', meios: ['dinheiro_brl','dinheiro'],         extrato_conta: null },
+  { label: "Dinheiro US$",         moeda: 'USD', meios: ['dinheiro_usd'],                    extrato_conta: null },
+  { label: "Dinheiro €",           moeda: 'EUR', meios: ['dinheiro_eur'],                    extrato_conta: null },
+  { label: "Dinheiro AR$",         moeda: 'ARS', meios: ['dinheiro_ars','transf_ar'],        extrato_conta: null },
+  { label: "Cripto",               moeda: 'BRL', meios: ['cripto'],                          extrato_conta: null }
 ];
 
 async function renderCaixa(){
-  var per = getCaixaPeriodo();
   var el = document.getElementById("caixaBody");
   el.innerHTML = '<div class="loading">Carregando...</div>';
 
-  // Precisa de pagamentos + reservas (para entradas)
-  if(!_allPagamentosCaixa){
-    _allPagamentosCaixa = await api("pagamentos?select=*,comprobantes(descricao,fornecedores(nome))&order=data_pagamento.desc&limit=5000") || [];
-  }
-  var reservasResult = await loadReservasDRE();
-  // Fetch extratos (último por conta) + saldos_caixa (último por meio)
-  var extratosList = await api("extratos_bancarios?select=*&order=data_fim.desc&limit=100") || [];
-  var saldosList = await api("saldos_caixa?select=*&order=data.desc&limit=200") || [];
+  // Data de corte (hoje por padrão · usa pagDataFim se definida)
+  var dataCorte = document.getElementById("pagDataFim").value || new Date().toISOString().slice(0,10);
 
-  // ── ENTRADAS (reservas · data_anticipo + data_saldo) ──
-  var entradas = [];  // { data, valor, label, meio }
-  if(reservasResult.ok){
-    // Precisa dos campos de anticipo e saldo que não estão em loadReservasDRE
-    // Faço fetch adicional com campos completos
-    var reservasCaixa = await api("reservas?select=id,nome,canal,apto,anticipo,saldo_cobrado,pago_anticipo,pago_saldo,data_anticipo,data_saldo,devolucao,status&limit=5000");
-    if(reservasCaixa){
-      reservasCaixa.forEach(function(r){
-        var st = String(r.status || "").toLowerCase();
-        if(st.indexOf("cancel") >= 0) return;
-        // Anticipo pago
-        if(r.data_anticipo && Number(r.anticipo) > 0){
-          var d = String(r.data_anticipo).slice(0,10);
-          if((!per.ini || d >= per.ini) && (!per.fim || d <= per.fim)){
-            entradas.push({
-              data: d, valor: Number(r.anticipo),
-              label: "Antecipado · " + (r.nome || "Sem nome"),
-              meio: (r.pago_anticipo || "").toLowerCase() || "outro",
-              tipo: "reserva_ant"
-            });
-          }
-        }
-        // Saldo pago
-        if(r.data_saldo && Number(r.saldo_cobrado) > 0){
-          var d2 = String(r.data_saldo).slice(0,10);
-          if((!per.ini || d2 >= per.ini) && (!per.fim || d2 <= per.fim)){
-            entradas.push({
-              data: d2, valor: Number(r.saldo_cobrado),
-              label: "Saldo · " + (r.nome || "Sem nome"),
-              meio: (r.pago_saldo || "").toLowerCase() || "outro",
-              tipo: "reserva_saldo"
-            });
-          }
-        }
-      });
-    }
-  }
+  // Fetch extratos e saldos_caixa
+  var extratosList = await api("extratos_bancarios?select=*&order=data_fim.desc&limit=200") || [];
+  var saldosList = await api("saldos_caixa?select=*&order=data.desc&limit=500") || [];
 
-  // ── SAÍDAS (pagamentos · data_pagamento) ──
-  var saidas = [];
-  _allPagamentosCaixa.forEach(function(p){
-    var d = String(p.data_pagamento || "").slice(0,10);
-    if(!d) return;
-    if(per.ini && d < per.ini) return;
-    if(per.fim && d > per.fim) return;
-    var forn = (p.comprobantes && p.comprobantes.fornecedores) ? p.comprobantes.fornecedores.nome : "";
-    var desc = p.comprobantes ? p.comprobantes.descricao : "";
-    saidas.push({
-      data: d, valor: Number(p.valor),
-      label: forn + (desc ? " · " + desc : ""),
-      meio: p.meio_pagamento || "outro"
-    });
-  });
-
-  var totalEntradas = 0; entradas.forEach(function(e){ totalEntradas += e.valor; });
-  var totalSaidas   = 0; saidas.forEach(function(s){ totalSaidas += s.valor; });
-  var saldo = totalEntradas - totalSaidas;
-
-  // Agrupar por meio
-  var entradasPorMeio = {};
-  entradas.forEach(function(e){
-    var m = e.meio || "outro";
-    entradasPorMeio[m] = (entradasPorMeio[m] || 0) + e.valor;
-  });
-  var saidasPorMeio = {};
-  saidas.forEach(function(s){
-    var m = s.meio || "outro";
-    saidasPorMeio[m] = (saidasPorMeio[m] || 0) + s.valor;
-  });
-
-  // Normalizar nomes de meio (formato reservas vs comprobantes é diferente)
-  function labelMeio(m){
-    var lk = String(m).toLowerCase();
-    if(MEIO_LABEL[lk]) return MEIO_LABEL[lk];
-    if(lk.indexOf("inter") >= 0 && lk.indexOf("cart") >= 0) return "Cartão Inter LG";
-    if(lk.indexOf("bradesco") >= 0 && lk.indexOf("cart") >= 0) return "Cartão Bradesco LG";
-    if(lk.indexOf("inter") >= 0) return "Inter LG · Pix";
-    if(lk.indexOf("bradesco") >= 0) return "Bradesco LG · Pix";
-    if(lk.indexOf("itau") >= 0 || lk.indexOf("itaú") >= 0) return "Outro (Itaú)";
-    if(lk.indexOf("cripto") >= 0 || lk.indexOf("fiwind") >= 0 || lk.indexOf("usdt") >= 0) return "Cripto";
-    if(lk.indexOf("usd") >= 0) return "Dinheiro US$";
-    if(lk.indexOf("ars") >= 0 || lk.indexOf("transf_ar") >= 0 || lk.indexOf("macro") >= 0) return "Dinheiro AR$";
-    if(lk.indexOf("dinheiro") >= 0 || lk.indexOf("cash") >= 0) return "Dinheiro R$";
-    if(lk.indexOf("pix") >= 0) return "Outro (Pix sem banco)";
-    return m || "Outro";
-  }
-
-  var html = "";
-
-  // ─── BLOQUE DE SALDOS POR MEIO ───
-  // Último extrato por conta e último saldo_caixa por meio
+  // Para cada conta, último extrato com data_fim <= dataCorte
   var extratoByConta = {};
   extratosList.forEach(function(e){
+    if(e.data_fim > dataCorte) return;
     if(!extratoByConta[e.conta] || e.data_fim > extratoByConta[e.conta].data_fim){
       extratoByConta[e.conta] = e;
     }
   });
+  // Para cada meio, última declaração com data <= dataCorte
   var saldoByMeio = {};
   saldosList.forEach(function(s){
+    if(s.data > dataCorte) return;
     if(!saldoByMeio[s.meio] || s.data > saldoByMeio[s.meio].data){
       saldoByMeio[s.meio] = s;
     }
   });
 
-  // Para cada meio: calcular oficial + projetado
-  // Precisa de todos os pagamentos e todas as reservas (sem filtro de período)
-  var allReservas = reservasResult.ok ? reservasResult.rows : [];
-  var allPags = _allPagamentosCaixa;
-
-  var saldosHtml = '<div class="caixa-saldos-bloco">';
-  saldosHtml += '<div class="caixa-saldos-titulo">🏦 Saldos por meio</div>';
-  saldosHtml += '<div class="caixa-saldos-list">';
+  // Totais por moeda
+  var totaisPorMoeda = { BRL: 0, USD: 0, EUR: 0, ARS: 0 };
+  var html = '';
+  html += '<div class="caixa-saldos-bloco">';
+  html += '<div class="caixa-saldos-titulo">🏦 Saldos a ' + fmtDate(dataCorte) + '</div>';
+  html += '<div class="caixa-saldos-list">';
 
   CAIXA_MEIOS.forEach(function(cfg){
-    // Determinar oficial (mais recente entre extrato e declarações dos meios)
+    // Oficial = o mais recente entre extrato e declaração
     var oficial = null;
     if(cfg.extrato_conta && extratoByConta[cfg.extrato_conta]){
       var e = extratoByConta[cfg.extrato_conta];
@@ -2916,117 +2827,94 @@ async function renderCaixa(){
       }
     });
 
-    // Entradas e saídas desde data oficial (se não tem, desde o início)
-    var sinceData = oficial ? oficial.data : '0000-01-01';
-    var entradas = 0;
-    allReservas.forEach(function(r){
-      var st = String(r.status||"").toLowerCase();
-      if(st.indexOf("cancel") >= 0) return;
-      // anticipo
-      if(r.data_anticipo && r.data_anticipo > sinceData && cfg.meios.indexOf((r.pago_anticipo||"").toLowerCase()) >= 0){
-        entradas += Number(r.anticipo)||0;
-      }
-      if(r.data_saldo && r.data_saldo > sinceData && cfg.meios.indexOf((r.pago_saldo||"").toLowerCase()) >= 0){
-        entradas += Number(r.saldo_cobrado)||0;
-      }
-    });
-    var saidas = 0;
-    allPags.forEach(function(p){
-      if(p.data_pagamento > sinceData && cfg.meios.indexOf(p.meio_pagamento) >= 0){
-        saidas += Number(p.valor)||0;
-      }
-    });
+    if(!oficial) return; // só mostra meios com dado
 
-    var projetado = oficial ? (oficial.valor + entradas - saidas) : (entradas - saidas);
-    var diff = oficial ? (projetado - oficial.valor) : null;
+    totaisPorMoeda[cfg.moeda] = (totaisPorMoeda[cfg.moeda] || 0) + oficial.valor;
 
-    // Só mostra se tem algum dado (oficial ou movimentos)
-    if(!oficial && entradas === 0 && saidas === 0) return;
+    var prefix = cfg.moeda === 'USD' ? 'US$ ' : (cfg.moeda === 'EUR' ? '€ ' : (cfg.moeda === 'ARS' ? 'AR$ ' : 'R$ '));
+    var abs = Math.abs(oficial.valor);
+    var valorTxt = (oficial.valor < 0 ? '−' : '') + prefix + abs.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+    var fonteTxt = oficial.fonte + (oficial.por ? ' · '+oficial.por : '') + ' · ' + fmtDate(oficial.data);
 
-    // Moeda do rótulo
-    var isUsd = cfg.meios.indexOf('dinheiro_usd') >= 0;
-    var isArs = cfg.meios.indexOf('dinheiro_ars') >= 0;
-    var prefix = isUsd ? 'US$ ' : (isArs ? 'AR$ ' : 'R$ ');
-    function fmt(v){
-      var abs = Math.abs(Number(v)||0);
-      var s = abs.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
-      return (v < 0 ? '−' : '') + prefix + s;
-    }
-
-    saldosHtml += '<div class="saldo-meio">';
-    saldosHtml += '<div class="saldo-meio-label">'+cfg.label+'</div>';
-    saldosHtml += '<div class="saldo-meio-grid">';
-    if(oficial){
-      var fonteTxt = oficial.fonte + (oficial.por ? ' · '+oficial.por : '') + ' · ' + fmtDate(oficial.data);
-      saldosHtml += '<div class="saldo-row"><div class="saldo-k">Oficial</div><div class="saldo-v">'+fmt(oficial.valor)+'</div><div class="saldo-note">'+fonteTxt+'</div></div>';
-    } else {
-      saldosHtml += '<div class="saldo-row"><div class="saldo-k">Oficial</div><div class="saldo-v" style="opacity:0.4">—</div><div class="saldo-note">sem dado</div></div>';
-    }
-    saldosHtml += '<div class="saldo-row"><div class="saldo-k">Projetado hoje</div><div class="saldo-v">'+fmt(projetado)+'</div><div class="saldo-note">+'+fmt(entradas).replace(prefix,'')+' −'+fmt(saidas).replace(prefix,'')+'</div></div>';
-    if(diff !== null){
-      var diffCls = Math.abs(diff) < 0.5 ? 'ok' : (diff > 0 ? 'up' : 'down');
-      var diffLabel = Math.abs(diff) < 0.5 ? '✓ bate' : (diff > 0 ? '⚠ sobra' : '⚠ falta');
-      saldosHtml += '<div class="saldo-row diff '+diffCls+'"><div class="saldo-k">Diferença</div><div class="saldo-v">'+fmt(diff)+'</div><div class="saldo-note">'+diffLabel+'</div></div>';
-    }
-    saldosHtml += '</div></div>';
+    html += '<div class="saldo-meio">';
+    html += '  <div class="saldo-meio-topline">';
+    html += '    <div class="saldo-meio-label">'+cfg.label+'</div>';
+    html += '    <div class="saldo-meio-valor">'+valorTxt+'</div>';
+    html += '  </div>';
+    html += '  <div class="saldo-meio-fonte">'+fonteTxt+'</div>';
+    html += '</div>';
   });
-
-  saldosHtml += '</div></div>';
-  html += saldosHtml;
-
-  // Saldo card
-  html += '<div class="caixa-saldo '+(saldo < 0 ? 'negativo' : '')+'">' +
-            '<div class="caixa-saldo-label">Saldo do período (entradas − saídas)</div>' +
-            '<div class="caixa-saldo-valor">'+(saldo >= 0 ? '' : '−')+fmtBRL(Math.abs(saldo))+'</div>' +
-            '<div class="caixa-saldo-detail">' +
-              '<span>Entradas <b style="color:#2a5a3a">'+fmtBRL(totalEntradas)+'</b></span>' +
-              '<span>Saídas <b style="color:#7a3a3a">'+fmtBRL(totalSaidas)+'</b></span>' +
-            '</div>' +
-          '</div>';
-
-  // Tabela DRE-like
-  html += '<div class="dre-table">';
-  html += '<div class="dre-colheader"><div>Conta</div><div>R$</div><div>%</div></div>';
-
-  // ENTRADAS por meio
-  if(totalEntradas > 0){
-    var entMap = {};
-    Object.keys(entradasPorMeio).forEach(function(k){
-      var lab = labelMeio(k);
-      entMap[lab] = (entMap[lab] || 0) + entradasPorMeio[k];
-    });
-    html += dreRenderSec({ cls:'sec-receita', titulo:'Entradas (reservas)', sinal:'+' }, entMap, totalEntradas);
-  }
-
-  // SAIDAS por meio
-  if(totalSaidas > 0){
-    var saiMap = {};
-    Object.keys(saidasPorMeio).forEach(function(k){
-      var lab = labelMeio(k);
-      saiMap[lab] = (saiMap[lab] || 0) + saidasPorMeio[k];
-    });
-    html += dreRenderSec({ cls:'sec-custo-op', titulo:'Saídas (pagamentos)' }, saiMap, totalSaidas);
-  }
-
-  html += dreTotalRow(saldo >= 0 ? 'tot-bruto' : 'tot-liquido', 'Saldo líquido do período', saldo, totalEntradas, saldo < 0 ? 'negativo' : '');
 
   html += '</div>';
 
-  if(entradas.length === 0 && saidas.length === 0){
-    html = '<div class="empty"><div class="empty-icon">🏦</div>Sem movimentos no período.</div>';
+  // Totais por moeda
+  var temTotais = Object.keys(totaisPorMoeda).some(function(k){ return totaisPorMoeda[k] !== 0; });
+  if(temTotais){
+    html += '<div class="caixa-totais">';
+    ['BRL','USD','EUR','ARS'].forEach(function(m){
+      if(totaisPorMoeda[m] === 0) return;
+      var prefix = m === 'USD' ? 'US$ ' : (m === 'EUR' ? '€ ' : (m === 'ARS' ? 'AR$ ' : 'R$ '));
+      var abs = Math.abs(totaisPorMoeda[m]);
+      var txt = (totaisPorMoeda[m] < 0 ? '−' : '') + prefix + abs.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+      html += '<div class="caixa-total-row"><div class="caixa-total-k">Total '+m+'</div><div class="caixa-total-v">'+txt+'</div></div>';
+    });
+    html += '</div>';
   }
+
+  html += '</div>';
+
+  // Botão declarar saldo
+  html += '<div class="module-actions" style="margin-top:14px"><button class="btn-primary" id="btnDeclararSaldo">📊 Declarar saldo de tenência</button><div class="field-hint" style="text-align:center;margin-top:4px;color:rgba(255,255,255,0.6)">Para efectivo R$ / US$ / € / AR$</div></div>';
+
+  var totalMeios = Object.keys(extratoByConta).length + Object.keys(saldoByMeio).length;
+  if(totalMeios === 0){
+    html = '<div class="empty"><div class="empty-icon">🏦</div>Sem saldos registrados.<br><br>Importe um extrato bancário ou declare um saldo em efectivo.</div>';
+    html += '<div class="module-actions" style="margin-top:14px"><button class="btn-primary" id="btnDeclararSaldo">📊 Declarar saldo</button></div>';
+  }
+
   el.innerHTML = html;
-  document.getElementById("caixaSubtitle").textContent = entradas.length + " entrada" + (entradas.length !== 1 ? "s" : "") + " · " + saidas.length + " saída" + (saidas.length !== 1 ? "s" : "");
+  document.getElementById("caixaSubtitle").textContent = "Portfolio de tenencias a " + fmtDate(dataCorte);
+
+  var btnDS = document.getElementById("btnDeclararSaldo");
+  if(btnDS) btnDS.addEventListener("click", openDeclararSaldoModal);
+}
+
+// ── Modal declarar saldo ──
+function openDeclararSaldoModal(){
+  document.getElementById("dsData").value = new Date().toISOString().slice(0,10);
+  document.getElementById("dsMeio").value = "dinheiro_brl";
+  document.getElementById("dsValor").value = "";
+  document.getElementById("dsObs").value = "";
+  document.getElementById("modalDeclararSaldo").classList.add("open");
+}
+function closeDeclararSaldoModal(){
+  document.getElementById("modalDeclararSaldo").classList.remove("open");
+}
+async function saveDeclararSaldo(){
+  var data = document.getElementById("dsData").value;
+  var meio = document.getElementById("dsMeio").value;
+  var valor = parseFloat(document.getElementById("dsValor").value);
+  var obs = document.getElementById("dsObs").value.trim();
+  if(!data){ showToast("Data obrigatória"); return; }
+  if(!meio){ showToast("Meio obrigatório"); return; }
+  if(isNaN(valor)){ showToast("Valor inválido"); return; }
+  var r = await api("saldos_caixa", "POST", {
+    data: data, meio: meio, valor: valor,
+    usuario: currentUser.username || "system",
+    observacoes: obs || null
+  });
+  if(!r){ showToast("Erro ao salvar"); return; }
+  showToast("Saldo declarado ✓");
+  closeDeclararSaldoModal();
+  renderCaixa();
 }
 
 async function goToCaixa(){
   showView("viewCaixa");
-  _allPagamentosCaixa = null; // força refresh
-  if(!document.getElementById("caixaDataIni").value){
-    aplicarCaixaPeriodoPreset("mes_atual");
-  } else {
-    renderCaixa();
+  if(!document.getElementById("caixaDataFim").value){
+    document.getElementById("caixaDataFim").value = new Date().toISOString().slice(0,10);
   }
+  renderCaixa();
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -4981,6 +4869,14 @@ function init(){
   });
   var btnExpEgr = document.getElementById("btnExportEgresos");
   if(btnExpEgr) btnExpEgr.addEventListener("click", exportEgresosExcel);
+
+  // ─── Caixa · Declarar saldo ───
+  var btnCloseDS = document.getElementById("btnCloseDS");
+  if(btnCloseDS) btnCloseDS.addEventListener("click", closeDeclararSaldoModal);
+  var btnSaveDS = document.getElementById("btnSaveDS");
+  if(btnSaveDS) btnSaveDS.addEventListener("click", saveDeclararSaldo);
+  var mds = document.getElementById("modalDeclararSaldo");
+  if(mds) mds.addEventListener("click", function(e){ if(e.target === mds) closeDeclararSaldoModal(); });
 
   // ─── Caixa ───
   document.querySelectorAll(".chip-btn[data-caixa-periodo]").forEach(function(b){

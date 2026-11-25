@@ -1650,3 +1650,48 @@ a { color: var(--ocean); text-decoration: none; }
 .saldo-row.diff.ok .saldo-note { color: #a8d8b5; }
 .saldo-row.diff.up .saldo-note { color: #f0d890; }
 .saldo-row.diff.down .saldo-note { color: #e8b0b0; }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.13.4 · Caixa portfolio simplificado
+   ═════════════════════════════════════════════════════════════════════ */
+
+.saldo-meio-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.saldo-meio-valor {
+  font-weight: 700;
+  color: var(--white);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+.saldo-meio-fonte {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 4px;
+}
+.caixa-totais {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+.caixa-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 4px;
+  font-size: 13px;
+  color: var(--white);
+}
+.caixa-total-k {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  opacity: 0.8;
+}
+.caixa-total-v {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}

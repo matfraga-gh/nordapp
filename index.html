@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.13.2">
+<link rel="stylesheet" href="styles.css?v=0.13.4">
 </head>
 <body>
 
@@ -1002,29 +1002,56 @@
       <button class="btn-back" data-nav="hubReportes">← Reportes</button>
       <div class="module-title-block">
         <div class="module-title">🏦 Caixa</div>
-        <div class="module-subtitle" id="caixaSubtitle">Fluxo em regime de caixa</div>
+        <div class="module-subtitle" id="caixaSubtitle">Portfolio de tenencias</div>
       </div>
     </div>
 
-    <div class="periodo-row">
-      <div class="periodo-presets">
-        <button class="chip-btn" data-caixa-periodo="mes_atual">Mês atual</button>
-        <button class="chip-btn" data-caixa-periodo="mes_anterior">Mês anterior</button>
-        <button class="chip-btn" data-caixa-periodo="ano_atual">Ano</button>
-        <button class="chip-btn" data-caixa-periodo="tudo">Tudo</button>
-      </div>
+    <div class="periodo-row" style="max-width:380px">
       <div class="periodo-datas">
-        <input type="date" id="caixaDataIni" class="filter-input">
-        <span class="periodo-sep">até</span>
+        <span class="periodo-sep">Saldos a</span>
         <input type="date" id="caixaDataFim" class="filter-input">
+        <input type="date" id="caixaDataIni" class="filter-input" style="display:none">
       </div>
     </div>
 
     <div class="field-hint" style="max-width:560px;margin:0 auto 10px;text-align:center;color:rgba(255,255,255,0.65);padding:0 10px">
-      Entradas e saídas efetivamente pagas no período · diferente do DRE (competência)
+      Saldos oficiais por meio · último extrato bancário ou declaração de efectivo em cada moeda
     </div>
 
     <div id="caixaBody"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- Modal Declarar saldo -->
+<div class="overlay" id="modalDeclararSaldo">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">📊 Declarar saldo</span>
+      <button class="btn-x" id="btnCloseDS">×</button>
+    </div>
+    <label>Meio <span class="req">*</span></label>
+    <select id="dsMeio">
+      <option value="dinheiro_brl">Dinheiro R$</option>
+      <option value="dinheiro_usd">Dinheiro US$</option>
+      <option value="dinheiro_eur">Dinheiro €</option>
+      <option value="dinheiro_ars">Dinheiro AR$</option>
+      <option value="cripto">Cripto</option>
+    </select>
+    <div class="row-2">
+      <div>
+        <label>Valor <span class="req">*</span></label>
+        <input type="number" id="dsValor" step="0.01" placeholder="0,00">
+      </div>
+      <div>
+        <label>Data <span class="req">*</span></label>
+        <input type="date" id="dsData">
+      </div>
+    </div>
+    <label>Observações</label>
+    <textarea id="dsObs" rows="2" placeholder="Ex: contagem física feita em presença do sócio"></textarea>
+    <div class="modal-footer">
+      <button class="btn-primary" id="btnSaveDS">Salvar</button>
+    </div>
   </div>
 </div>
 
@@ -1172,6 +1199,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.13.3"></script>
+<script src="app.js?v=0.13.4"></script>
 </body>
 </html>
