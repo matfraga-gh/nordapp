@@ -1579,3 +1579,74 @@ a { color: var(--ocean); text-decoration: none; }
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.13.2 · Saldos por meio no Caixa
+   ═════════════════════════════════════════════════════════════════════ */
+
+.caixa-saldos-bloco {
+  max-width: 640px;
+  margin: 0 auto 16px;
+  background: rgba(0,0,0,0.15);
+  border-radius: var(--radius-md);
+  padding: 14px 14px 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.caixa-saldos-titulo {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(255,255,255,0.8);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.caixa-saldos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.saldo-meio {
+  background: rgba(255,255,255,0.04);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border-left: 3px solid var(--ocean-mid);
+}
+.saldo-meio-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--white);
+  margin-bottom: 6px;
+  letter-spacing: -0.1px;
+}
+.saldo-meio-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.saldo-row {
+  display: grid;
+  grid-template-columns: 110px 130px 1fr;
+  gap: 8px;
+  font-size: 12.5px;
+  align-items: baseline;
+}
+.saldo-k { color: rgba(255,255,255,0.6); font-weight: 500; }
+.saldo-v {
+  font-weight: 700;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.saldo-note {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saldo-row.diff.ok .saldo-v { color: #a8d8b5; }
+.saldo-row.diff.up .saldo-v { color: #f0d890; }
+.saldo-row.diff.down .saldo-v { color: #e8b0b0; }
+.saldo-row.diff.ok .saldo-note { color: #a8d8b5; }
+.saldo-row.diff.up .saldo-note { color: #f0d890; }
+.saldo-row.diff.down .saldo-note { color: #e8b0b0; }

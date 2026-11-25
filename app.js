@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.13.1 · Pagos consolidado + Anulados audit · 2026-11-25");
+console.log("NORDAPP v0.13.2 · Saldos por meio no Caixa · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.2 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -2755,6 +2755,18 @@ function aplicarCaixaPeriodoPreset(preset){
   renderCaixa();
 }
 
+// Mapping: label visible → meios equivalentes + conta de extrato
+var CAIXA_MEIOS = [
+  { label: "Inter LG · Pix",       meios: ['inter_pix','banco_inter'],         extrato_conta: 'inter_lg' },
+  { label: "Bradesco LG · Pix",    meios: ['bradesco_pix','banco_bradesco'],   extrato_conta: 'bradesco_lg' },
+  { label: "Cartão Inter LG",      meios: ['inter_cartao'],                    extrato_conta: null },
+  { label: "Cartão Bradesco LG",   meios: ['bradesco_cartao','cartao_corp'],   extrato_conta: null },
+  { label: "Dinheiro R$",          meios: ['dinheiro_brl','dinheiro'],         extrato_conta: null },
+  { label: "Dinheiro US$",         meios: ['dinheiro_usd'],                    extrato_conta: null },
+  { label: "Dinheiro AR$",         meios: ['dinheiro_ars','transf_ar'],        extrato_conta: null },
+  { label: "Cripto",               meios: ['cripto'],                          extrato_conta: null }
+];
+
 async function renderCaixa(){
   var per = getCaixaPeriodo();
   var el = document.getElementById("caixaBody");
@@ -2765,6 +2777,9 @@ async function renderCaixa(){
     _allPagamentosCaixa = await api("pagamentos?select=*,comprobantes(descricao,fornecedores(nome))&order=data_pagamento.desc&limit=5000") || [];
   }
   var reservasResult = await loadReservasDRE();
+  // Fetch extratos (último por conta) + saldos_caixa (último por meio)
+  var extratosList = await api("extratos_bancarios?select=*&order=data_fim.desc&limit=100") || [];
+  var saldosList = await api("saldos_caixa?select=*&order=data.desc&limit=200") || [];
 
   // ── ENTRADAS (reservas · data_anticipo + data_saldo) ──
   var entradas = [];  // { data, valor, label, meio }
@@ -2854,6 +2869,104 @@ async function renderCaixa(){
   }
 
   var html = "";
+
+  // ─── BLOQUE DE SALDOS POR MEIO ───
+  // Último extrato por conta e último saldo_caixa por meio
+  var extratoByConta = {};
+  extratosList.forEach(function(e){
+    if(!extratoByConta[e.conta] || e.data_fim > extratoByConta[e.conta].data_fim){
+      extratoByConta[e.conta] = e;
+    }
+  });
+  var saldoByMeio = {};
+  saldosList.forEach(function(s){
+    if(!saldoByMeio[s.meio] || s.data > saldoByMeio[s.meio].data){
+      saldoByMeio[s.meio] = s;
+    }
+  });
+
+  // Para cada meio: calcular oficial + projetado
+  // Precisa de todos os pagamentos e todas as reservas (sem filtro de período)
+  var allReservas = reservasResult.ok ? reservasResult.rows : [];
+  var allPags = _allPagamentosCaixa;
+
+  var saldosHtml = '<div class="caixa-saldos-bloco">';
+  saldosHtml += '<div class="caixa-saldos-titulo">🏦 Saldos por meio</div>';
+  saldosHtml += '<div class="caixa-saldos-list">';
+
+  CAIXA_MEIOS.forEach(function(cfg){
+    // Determinar oficial (mais recente entre extrato e declarações dos meios)
+    var oficial = null;
+    if(cfg.extrato_conta && extratoByConta[cfg.extrato_conta]){
+      var e = extratoByConta[cfg.extrato_conta];
+      oficial = { fonte:'Extrato', data:e.data_fim, valor:Number(e.saldo_final)||0 };
+    }
+    cfg.meios.forEach(function(m){
+      if(saldoByMeio[m]){
+        var s = saldoByMeio[m];
+        if(!oficial || s.data > oficial.data){
+          oficial = { fonte:'Declaração', data:s.data, valor:Number(s.valor)||0, por:s.usuario };
+        }
+      }
+    });
+
+    // Entradas e saídas desde data oficial (se não tem, desde o início)
+    var sinceData = oficial ? oficial.data : '0000-01-01';
+    var entradas = 0;
+    allReservas.forEach(function(r){
+      var st = String(r.status||"").toLowerCase();
+      if(st.indexOf("cancel") >= 0) return;
+      // anticipo
+      if(r.data_anticipo && r.data_anticipo > sinceData && cfg.meios.indexOf((r.pago_anticipo||"").toLowerCase()) >= 0){
+        entradas += Number(r.anticipo)||0;
+      }
+      if(r.data_saldo && r.data_saldo > sinceData && cfg.meios.indexOf((r.pago_saldo||"").toLowerCase()) >= 0){
+        entradas += Number(r.saldo_cobrado)||0;
+      }
+    });
+    var saidas = 0;
+    allPags.forEach(function(p){
+      if(p.data_pagamento > sinceData && cfg.meios.indexOf(p.meio_pagamento) >= 0){
+        saidas += Number(p.valor)||0;
+      }
+    });
+
+    var projetado = oficial ? (oficial.valor + entradas - saidas) : (entradas - saidas);
+    var diff = oficial ? (projetado - oficial.valor) : null;
+
+    // Só mostra se tem algum dado (oficial ou movimentos)
+    if(!oficial && entradas === 0 && saidas === 0) return;
+
+    // Moeda do rótulo
+    var isUsd = cfg.meios.indexOf('dinheiro_usd') >= 0;
+    var isArs = cfg.meios.indexOf('dinheiro_ars') >= 0;
+    var prefix = isUsd ? 'US$ ' : (isArs ? 'AR$ ' : 'R$ ');
+    function fmt(v){
+      var abs = Math.abs(Number(v)||0);
+      var s = abs.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+      return (v < 0 ? '−' : '') + prefix + s;
+    }
+
+    saldosHtml += '<div class="saldo-meio">';
+    saldosHtml += '<div class="saldo-meio-label">'+cfg.label+'</div>';
+    saldosHtml += '<div class="saldo-meio-grid">';
+    if(oficial){
+      var fonteTxt = oficial.fonte + (oficial.por ? ' · '+oficial.por : '') + ' · ' + fmtDate(oficial.data);
+      saldosHtml += '<div class="saldo-row"><div class="saldo-k">Oficial</div><div class="saldo-v">'+fmt(oficial.valor)+'</div><div class="saldo-note">'+fonteTxt+'</div></div>';
+    } else {
+      saldosHtml += '<div class="saldo-row"><div class="saldo-k">Oficial</div><div class="saldo-v" style="opacity:0.4">—</div><div class="saldo-note">sem dado</div></div>';
+    }
+    saldosHtml += '<div class="saldo-row"><div class="saldo-k">Projetado hoje</div><div class="saldo-v">'+fmt(projetado)+'</div><div class="saldo-note">+'+fmt(entradas).replace(prefix,'')+' −'+fmt(saidas).replace(prefix,'')+'</div></div>';
+    if(diff !== null){
+      var diffCls = Math.abs(diff) < 0.5 ? 'ok' : (diff > 0 ? 'up' : 'down');
+      var diffLabel = Math.abs(diff) < 0.5 ? '✓ bate' : (diff > 0 ? '⚠ sobra' : '⚠ falta');
+      saldosHtml += '<div class="saldo-row diff '+diffCls+'"><div class="saldo-k">Diferença</div><div class="saldo-v">'+fmt(diff)+'</div><div class="saldo-note">'+diffLabel+'</div></div>';
+    }
+    saldosHtml += '</div></div>';
+  });
+
+  saldosHtml += '</div></div>';
+  html += saldosHtml;
 
   // Saldo card
   html += '<div class="caixa-saldo '+(saldo < 0 ? 'negativo' : '')+'">' +
