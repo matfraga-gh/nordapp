@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.13.4 · Caixa portfolio simplificado · 2026-11-25");
+console.log("NORDAPP v0.13.5 · Caixa aceita variações de conta + saldo inferido · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.4 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.5 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -2761,19 +2761,19 @@ function aplicarCaixaPeriodoPreset(preset){
   renderCaixa();
 }
 
-// Mapping: label visible → meios equivalentes + conta de extrato
+// Mapping: label visible → meios equivalentes + contas de extrato (aceita variações)
 var CAIXA_MEIOS = [
-  { label: "Bradesco LG",          moeda: 'BRL', meios: ['bradesco_pix','banco_bradesco'],   extrato_conta: 'bradesco_lg' },
-  { label: "Inter LG",             moeda: 'BRL', meios: ['inter_pix','banco_inter'],         extrato_conta: 'inter_lg' },
-  { label: "Cielo LG",             moeda: 'BRL', meios: [],                                  extrato_conta: 'cielo_lg' },
-  { label: "Kamipay LG",           moeda: 'BRL', meios: [],                                  extrato_conta: 'kamipay_lg' },
-  { label: "Cartão Inter LG",      moeda: 'BRL', meios: ['inter_cartao'],                    extrato_conta: null },
-  { label: "Cartão Bradesco LG",   moeda: 'BRL', meios: ['bradesco_cartao','cartao_corp'],   extrato_conta: null },
-  { label: "Dinheiro R$",          moeda: 'BRL', meios: ['dinheiro_brl','dinheiro'],         extrato_conta: null },
-  { label: "Dinheiro US$",         moeda: 'USD', meios: ['dinheiro_usd'],                    extrato_conta: null },
-  { label: "Dinheiro €",           moeda: 'EUR', meios: ['dinheiro_eur'],                    extrato_conta: null },
-  { label: "Dinheiro AR$",         moeda: 'ARS', meios: ['dinheiro_ars','transf_ar'],        extrato_conta: null },
-  { label: "Cripto",               moeda: 'BRL', meios: ['cripto'],                          extrato_conta: null }
+  { label: "Bradesco LG",          moeda: 'BRL', meios: ['bradesco_pix','banco_bradesco'],   extrato_contas: ['bradesco_lg','banco_bradesco','bradesco'] },
+  { label: "Inter LG",             moeda: 'BRL', meios: ['inter_pix','banco_inter'],         extrato_contas: ['inter_lg','banco_inter','inter'] },
+  { label: "Cielo LG",             moeda: 'BRL', meios: [],                                  extrato_contas: ['cielo_lg','cielo'] },
+  { label: "Kamipay LG",           moeda: 'BRL', meios: [],                                  extrato_contas: ['kamipay_lg','kamipay'] },
+  { label: "Cartão Inter LG",      moeda: 'BRL', meios: ['inter_cartao'],                    extrato_contas: [] },
+  { label: "Cartão Bradesco LG",   moeda: 'BRL', meios: ['bradesco_cartao','cartao_corp'],   extrato_contas: [] },
+  { label: "Dinheiro R$",          moeda: 'BRL', meios: ['dinheiro_brl','dinheiro'],         extrato_contas: [] },
+  { label: "Dinheiro US$",         moeda: 'USD', meios: ['dinheiro_usd'],                    extrato_contas: [] },
+  { label: "Dinheiro €",           moeda: 'EUR', meios: ['dinheiro_eur'],                    extrato_contas: [] },
+  { label: "Dinheiro AR$",         moeda: 'ARS', meios: ['dinheiro_ars','transf_ar'],        extrato_contas: [] },
+  { label: "Cripto",               moeda: 'BRL', meios: ['cripto'],                          extrato_contas: [] }
 ];
 
 async function renderCaixa(){
@@ -2786,6 +2786,19 @@ async function renderCaixa(){
   // Fetch extratos e saldos_caixa
   var extratosList = await api("extratos_bancarios?select=*&order=data_fim.desc&limit=200") || [];
   var saldosList = await api("saldos_caixa?select=*&order=data.desc&limit=500") || [];
+
+  // Para extratos sem saldo_final, buscar último saldo_apos dos movimentos
+  // (acontece se o parser não capturou o saldo total do cabeçalho do PDF)
+  for(var ei = 0; ei < extratosList.length; ei++){
+    var ext = extratosList[ei];
+    if(ext.saldo_final === null || ext.saldo_final === undefined || ext.saldo_final === 0){
+      var last = await api("movimentos_bancarios?extrato_id=eq." + ext.id + "&select=saldo_apos,data&order=data.desc,id.desc&limit=1");
+      if(last && last.length > 0 && last[0].saldo_apos !== null){
+        ext.saldo_final = Number(last[0].saldo_apos);
+        console.log("[Caixa] Extrato", ext.id, "(conta "+ext.conta+") · saldo_final inferido dos movs:", ext.saldo_final);
+      }
+    }
+  }
 
   // Para cada conta, último extrato com data_fim <= dataCorte
   var extratoByConta = {};
@@ -2812,12 +2825,16 @@ async function renderCaixa(){
   html += '<div class="caixa-saldos-list">';
 
   CAIXA_MEIOS.forEach(function(cfg){
-    // Oficial = o mais recente entre extrato e declaração
+    // Oficial = o mais recente entre extrato (qualquer variação de conta) e declaração
     var oficial = null;
-    if(cfg.extrato_conta && extratoByConta[cfg.extrato_conta]){
-      var e = extratoByConta[cfg.extrato_conta];
-      oficial = { fonte:'Extrato', data:e.data_fim, valor:Number(e.saldo_final)||0 };
-    }
+    (cfg.extrato_contas || []).forEach(function(conta){
+      if(extratoByConta[conta]){
+        var e = extratoByConta[conta];
+        if(!oficial || e.data_fim > oficial.data){
+          oficial = { fonte:'Extrato', data:e.data_fim, valor:Number(e.saldo_final)||0 };
+        }
+      }
+    });
     cfg.meios.forEach(function(m){
       if(saldoByMeio[m]){
         var s = saldoByMeio[m];
