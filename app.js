@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.9.3 · Fix _parsedExtra undefined · 2026-11-25");
+console.log("NORDAPP v0.9.4 · Fix conciliação criar comp + auto-match · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.3 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.4 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -1760,6 +1760,26 @@ async function saveRapida(){
     });
   }
 
+  // Se há um movimento esperando conciliação, concilia com o novo comprobante
+  if(_pendingConcMov && compRow && compRow.id){
+    var movId = _pendingConcMov.id;
+    await api("movimentos_bancarios?id=eq." + movId, "PATCH", {
+      comprobante_id: compRow.id,
+      conciliado: true,
+      conciliado_at: new Date().toISOString(),
+      conciliado_por: currentUser.username || "system"
+    });
+    _pendingConcMov = null;
+    showToast("Comprobante criado e conciliado ✓");
+    closeRapidaModal();
+    await loadComprobantes();
+    if(document.getElementById("viewConciliacao").classList.contains("active")){
+      await loadMovimentos();
+      renderConciliacao();
+    }
+    return;
+  }
+
   showToast("Despesa registrada ✓");
   closeRapidaModal();
   // Refresh ativo
@@ -3207,6 +3227,7 @@ var _parsedConta = null;
 var _parsedArquivo = null;
 var _parsedExtra = null;  // {data_ini, data_fim, saldo_final}
 var _currentMov = null;  // movimento sendo conciliado
+var _pendingConcMov = null;  // movimento esperando conciliação após criar comprobante
 var MESES_PT = {'janeiro':1,'fevereiro':2,'março':3,'marco':3,'abril':4,'maio':5,'junho':6,'julho':7,'agosto':8,'setembro':9,'outubro':10,'novembro':11,'dezembro':12};
 
 async function parsePDFExtrato(file){
@@ -3556,7 +3577,7 @@ function openConcModal(mov){
     html = '<div class="field-hint" style="margin:8px 0 4px">Sugestões (valor igual, data ±3d):</div><div class="sug-list">';
     sugs.forEach(function(c){
       var forn = c.fornecedores ? c.fornecedores.nome : "—";
-      html += '<div class="sug-item">' +
+      html += '<div class="sug-item" data-cid="'+c.id+'">' +
                 '<div class="sug-data">'+fmtDate(c.data_pagamento||c.data_competencia)+'</div>' +
                 '<div class="sug-desc">'+escapeHtml(c.descricao||"")+'<span class="forne">'+escapeHtml(forn)+'</span></div>' +
                 '<div class="sug-valor">'+fmtBRL(c.valor_total)+'</div>' +
@@ -3566,8 +3587,12 @@ function openConcModal(mov){
     html += '</div>';
   }
   document.getElementById("concSugestoes").innerHTML = html;
+  // Click no item ou no botão → confirma match
   document.getElementById("concSugestoes").querySelectorAll("[data-cid]").forEach(function(b){
-    b.addEventListener("click", function(){ confirmarMatch(b.dataset.cid); });
+    b.addEventListener("click", function(e){
+      e.stopPropagation();
+      confirmarMatch(b.dataset.cid);
+    });
   });
   document.getElementById("modalConc").classList.add("open");
 }
@@ -3609,15 +3634,27 @@ async function ignorarMov(){
 async function criarCompDeMov(){
   if(!_currentMov) return;
   if(_currentMov.valor >= 0){ showToast("Só saídas podem virar comprobantes"); return; }
+  var mov = _currentMov;   // salva ref antes de fechar modal
+  _pendingConcMov = mov;   // flag para auto-conciliar depois do save
+  // Pega top sugestão (se houver) para pré-llenar fornecedor + categoria
+  var sugTop = autoMatchSuggestion(mov)[0] || null;
   closeConcModal();
   // Abre Despesa Rápida com valores pré-preenchidos
   openRapidaModal();
-  document.getElementById("rfDescricao").value = _currentMov.descricao || "";
-  document.getElementById("rfValor").value = Math.abs(_currentMov.valor).toFixed(2);
-  document.getElementById("rfData").value = _currentMov.data;
+  // Dar tempo para selects popularem (openRapidaModal é sync mas pode rebajar via DOM)
+  document.getElementById("rfDescricao").value = mov.descricao || "";
+  document.getElementById("rfValor").value = Math.abs(mov.valor).toFixed(2);
+  document.getElementById("rfData").value = mov.data;
   document.getElementById("rfMeio").value = "banco_inter";
-  // Nota: o usuário precisa escolher fornecedor e categoria manualmente
-  showToast("Preenchido · escolhe fornecedor e categoria");
+  // Se tem top sugestão, hinta fornecedor e categoria
+  if(sugTop){
+    if(sugTop.fornecedor_id) document.getElementById("rfFornecedor").value = sugTop.fornecedor_id;
+    if(sugTop.categoria_dre_id) document.getElementById("rfCategoria").value = sugTop.categoria_dre_id;
+    if(sugTop.centro_custo) document.getElementById("rfCentroCusto").value = sugTop.centro_custo;
+    showToast("Dados pré-preenchidos da sugestão · revise");
+  } else {
+    showToast("Dados do extrato preenchidos · escolhe fornecedor e categoria");
+  }
 }
 
 async function goToConciliacao(){
