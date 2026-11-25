@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.10.0 · Simples Nacional + Comissoes · 2026-11-25");
+console.log("NORDAPP v0.11.0 · Módulo Pessoal · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.10.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.11.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -356,6 +356,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "egresos"){ goToEgresos(); return; }
   if(moduleId === "retiros_socios"){ goToRetiros(); return; }
   if(moduleId === "conciliacao"){ goToConciliacao(); return; }
+  if(moduleId === "pessoal"){ goToPessoal(); return; }
   if(moduleId === "simples_nacional"){ goToSimples(); return; }
   if(moduleId === "comissoes"){ goToComissoes(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
@@ -4066,6 +4067,222 @@ async function goToComissoes(){
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO PESSOAL (Funcionários)
+// ═════════════════════════════════════════════════════════════════════
+var _editingEmpId = null;
+var _activeEmpTab = "dados";
+
+function empregados(){
+  return _allFornecedores.filter(function(f){ return f.tipo === 'empregado'; });
+}
+
+function pagamentosDoEmpregado(fornecedor_id){
+  // Filtra comprobantes de categorias de pessoal (Salários OU Encargos) desse fornecedor
+  return _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre) return false;
+    var nome = c.categorias_dre.nome || "";
+    var isPessoal = nome === 'Pessoal CLT · Salários' || nome === 'Pessoal CLT · Encargos (INSS/FGTS)';
+    if(!isPessoal) return false;
+    return String(c.fornecedor_id) === String(fornecedor_id);
+  }).sort(function(a,b){ return (b.data_competencia||"").localeCompare(a.data_competencia||""); });
+}
+
+async function renderPessoal(){
+  if(_allFornecedores.length === 0) await loadFornecedores();
+  if(_allComps.length === 0) await loadComprobantes();
+
+  var search = (document.getElementById("pesSearch").value || "").toLowerCase().trim();
+  var list = empregados();
+  if(search){
+    list = list.filter(function(f){
+      return (f.nome || "").toLowerCase().indexOf(search) >= 0
+          || (f.cargo || "").toLowerCase().indexOf(search) >= 0
+          || (f.cnpj || "").indexOf(search) >= 0;
+    });
+  }
+  list.sort(function(a,b){ return (a.nome||"").localeCompare(b.nome||""); });
+
+  // KPIs
+  var totalEmp = list.length;
+  var salarioTotal = list.reduce(function(s, f){ return s + (Number(f.salario_base) || 0); }, 0);
+  // Pagos este mês
+  var hoje = new Date();
+  var iniMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0,10);
+  var fimMes = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).toISOString().slice(0,10);
+  var pagosMes = 0;
+  list.forEach(function(f){
+    pagamentosDoEmpregado(f.id).forEach(function(c){
+      if(c.data_competencia >= iniMes && c.data_competencia <= fimMes){
+        pagosMes += Number(c.valor_total) || 0;
+      }
+    });
+  });
+
+  document.getElementById("pesKpis").innerHTML =
+    '<div class="ing-kpi"><div class="ing-kpi-label">Funcionários</div><div class="ing-kpi-value">'+totalEmp+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Folha mensal</div><div class="ing-kpi-value">'+fmtBRL(salarioTotal)+'</div><div class="ing-kpi-sub">base salarial</div></div>' +
+    '<div class="ing-kpi span2"><div class="ing-kpi-label">Pago este mês</div><div class="ing-kpi-value">'+fmtBRL(pagosMes)+'</div><div class="ing-kpi-sub">salários + encargos competência '+iniMes.slice(0,7)+'</div></div>';
+
+  var el = document.getElementById("pesBody");
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">👤</div>Nenhum funcionário ainda.</div>';
+    document.getElementById("pesSubtitle").textContent = "0 funcionários";
+    return;
+  }
+
+  el.innerHTML = '<div class="pes-list">' + list.map(function(f){
+    var pags = pagamentosDoEmpregado(f.id);
+    var ultimoPg = pags[0];
+    var sub = (f.cargo || "Sem cargo") +
+              (f.pix ? ' <span class="pix">pix</span>' : '');
+    var valorHtml = f.salario_base ?
+      '<div class="pes-item-valor">'+fmtBRL(f.salario_base)+'<span class="lbl">salário</span></div>' :
+      (ultimoPg ? '<div class="pes-item-valor">'+fmtBRL(ultimoPg.valor_total)+'<span class="lbl">último pago</span></div>' : '');
+    return '<div class="pes-item" data-id="'+f.id+'">' +
+             '<div>' +
+               '<div class="pes-item-nome">'+escapeHtml(f.nome||"—")+'</div>' +
+               '<div class="pes-item-sub">'+sub+'</div>' +
+             '</div>' +
+             valorHtml +
+           '</div>';
+  }).join("") + '</div>';
+
+  document.getElementById("pesSubtitle").textContent = list.length + " funcionário" + (list.length !== 1 ? "s" : "");
+
+  el.querySelectorAll(".pes-item").forEach(function(it){
+    it.addEventListener("click", function(){ openEmpModal(it.dataset.id); });
+  });
+}
+
+function openEmpModal(id){
+  _editingEmpId = id || null;
+  var f = id ? _allFornecedores.find(function(x){ return String(x.id) === String(id); }) : null;
+
+  document.getElementById("empModalTitle").textContent = f ? "Editar: " + f.nome : "Novo funcionário";
+  document.getElementById("ef_nome").value = f ? (f.nome || "") : "";
+  document.getElementById("ef_cpf").value = f ? (f.cnpj || "") : "";
+  document.getElementById("ef_admissao").value = f ? (f.data_admissao || "") : "";
+  document.getElementById("ef_cargo").value = f ? (f.cargo || "") : "";
+  document.getElementById("ef_salario").value = f ? (f.salario_base || "") : "";
+  document.getElementById("ef_email").value = f ? (f.email || "") : "";
+  document.getElementById("ef_telefone").value = f ? (f.telefone || "") : "";
+  document.getElementById("ef_pix").value = f ? (f.pix || "") : "";
+  document.getElementById("ef_pix_tipo").value = f ? (f.pix_tipo || "") : "";
+  document.getElementById("ef_endereco").value = f ? (f.endereco || "") : "";
+  document.getElementById("ef_obs").value = f ? (f.comentarios || "") : "";
+
+  document.getElementById("btnDeleteEmpregado").style.display = f ? "block" : "none";
+
+  // Show histórico tab only for existing employees
+  document.getElementById("empTabHist").style.display = f ? "inline-block" : "none";
+  switchEmpTab("dados");
+  if(f) renderEmpHistorico(f.id);
+
+  document.getElementById("modalEmpregado").classList.add("open");
+}
+function closeEmpModal(){
+  document.getElementById("modalEmpregado").classList.remove("open");
+  _editingEmpId = null;
+}
+
+function switchEmpTab(tab){
+  _activeEmpTab = tab;
+  document.querySelectorAll(".tab-btn[data-emp-tab]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.empTab === tab);
+  });
+  document.getElementById("empTabDados").classList.toggle("active", tab === "dados");
+  document.getElementById("empTabHistorico").classList.toggle("active", tab === "historico");
+}
+
+function renderEmpHistorico(empId){
+  var pags = pagamentosDoEmpregado(empId);
+  var total = 0; pags.forEach(function(c){ total += Number(c.valor_total)||0; });
+  var qtd12m = 0, total12m = 0;
+  var cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 12);
+  var cutoffIso = cutoff.toISOString().slice(0,10);
+  pags.forEach(function(c){
+    if(c.data_competencia >= cutoffIso){ qtd12m++; total12m += Number(c.valor_total)||0; }
+  });
+
+  document.getElementById("empHistKpis").innerHTML =
+    '<div class="ing-kpi"><div class="ing-kpi-label">Total pago</div><div class="ing-kpi-value">'+fmtBRL(total)+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Últ. 12 meses</div><div class="ing-kpi-value">'+fmtBRL(total12m)+'</div><div class="ing-kpi-sub">'+qtd12m+' pags</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Qtd total</div><div class="ing-kpi-value">'+pags.length+'</div></div>';
+
+  var listEl = document.getElementById("empHistList");
+  if(pags.length === 0){
+    listEl.innerHTML = '<div class="empty">Sem pagamentos registrados.</div>';
+    return;
+  }
+  var html = '<div class="ing-table"><div class="ing-table-title">Movimentos</div>' +
+    '<div class="ing-table-row header"><div>Data · Categoria</div><div></div><div></div><div>R$</div><div></div></div>';
+  pags.slice(0, 100).forEach(function(c){
+    var cat = c.categorias_dre ? c.categorias_dre.nome : "—";
+    var catShort = cat.indexOf("Encargos") >= 0 ? "Encargos" : "Salário";
+    html += '<div class="ing-table-row" data-emp-comp="'+c.id+'">' +
+      '<div>'+fmtDate(c.data_competencia)+' · '+catShort+'</div><div></div><div></div><div>'+fmtMoney(c.valor_total)+'</div><div></div>' +
+    '</div>';
+  });
+  html += '</div>';
+  listEl.innerHTML = html;
+  listEl.querySelectorAll("[data-emp-comp]").forEach(function(r){
+    r.addEventListener("click", function(){ closeEmpModal(); openCompModal(r.dataset.empComp); });
+  });
+}
+
+async function saveEmpregado(){
+  if(!canEditFornecedores()){ showToast("Sem permissão"); return; }
+  var nome = document.getElementById("ef_nome").value.trim();
+  if(!nome){ showToast("Nome obrigatório"); return; }
+
+  var payload = {
+    nome: nome,
+    tipo: 'empregado',
+    categoria: 'Pessoal',
+    cnpj: document.getElementById("ef_cpf").value.trim() || null,
+    data_admissao: document.getElementById("ef_admissao").value || null,
+    cargo: document.getElementById("ef_cargo").value.trim() || null,
+    salario_base: parseFloat(document.getElementById("ef_salario").value) || null,
+    email: document.getElementById("ef_email").value.trim() || null,
+    telefone: document.getElementById("ef_telefone").value.trim() || null,
+    pix: document.getElementById("ef_pix").value.trim() || null,
+    pix_tipo: document.getElementById("ef_pix_tipo").value || null,
+    endereco: document.getElementById("ef_endereco").value.trim() || null,
+    comentarios: document.getElementById("ef_obs").value.trim() || null
+  };
+
+  var r;
+  if(_editingEmpId){
+    r = await api("fornecedores?id=eq." + _editingEmpId, "PATCH", payload);
+  } else {
+    r = await api("fornecedores", "POST", payload);
+  }
+  if(!r){ showToast("Erro ao salvar"); return; }
+  showToast(_editingEmpId ? "Atualizado ✓" : "Funcionário criado ✓");
+  closeEmpModal();
+  await loadFornecedores();
+  renderPessoal();
+}
+
+async function deleteEmpregado(){
+  if(!_editingEmpId) return;
+  if(!confirm("Apagar este funcionário? (Os pagamentos ficam no histórico)")) return;
+  var r = await api("fornecedores?id=eq." + _editingEmpId, "DELETE");
+  if(r === null){ showToast("Erro (talvez tenha comprobantes associados)"); return; }
+  showToast("Apagado ✓");
+  closeEmpModal();
+  await loadFornecedores();
+  renderPessoal();
+}
+
+async function goToPessoal(){
+  showView("viewPessoal");
+  await renderPessoal();
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -4228,6 +4445,26 @@ function init(){
   });
   var btnExpCom = document.getElementById("btnExportCom");
   if(btnExpCom) btnExpCom.addEventListener("click", exportComissoesExcel);
+
+  // ─── Pessoal ───
+  var btnNovoEmp = document.getElementById("btnNovoEmpregado");
+  if(btnNovoEmp) btnNovoEmp.addEventListener("click", function(){ openEmpModal(null); });
+  var btnCloseEmp = document.getElementById("btnCloseEmpregado");
+  if(btnCloseEmp) btnCloseEmp.addEventListener("click", closeEmpModal);
+  var btnSaveEmp = document.getElementById("btnSaveEmpregado");
+  if(btnSaveEmp) btnSaveEmp.addEventListener("click", saveEmpregado);
+  var btnDelEmp = document.getElementById("btnDeleteEmpregado");
+  if(btnDelEmp) btnDelEmp.addEventListener("click", deleteEmpregado);
+  var mEmp = document.getElementById("modalEmpregado");
+  if(mEmp) mEmp.addEventListener("click", function(e){ if(e.target === mEmp) closeEmpModal(); });
+  document.querySelectorAll(".tab-btn[data-emp-tab]").forEach(function(b){
+    b.addEventListener("click", function(){
+      switchEmpTab(b.dataset.empTab);
+      if(b.dataset.empTab === "historico" && _editingEmpId) renderEmpHistorico(_editingEmpId);
+    });
+  });
+  var pesSearch = document.getElementById("pesSearch");
+  if(pesSearch) pesSearch.addEventListener("input", renderPessoal);
 
   // ─── Conciliação bancária ───
   var btnUp = document.getElementById("btnUploadExtrato");
