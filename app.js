@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.9.4 · Fix conciliação criar comp + auto-match · 2026-11-25");
+console.log("NORDAPP v0.9.5 · Fix hash + Ignorar LG->LG + Apagar extratos · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.4 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.5 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -3426,7 +3426,7 @@ async function confirmarImportExtrato(conta){
   var chunk = [];
   for(var i = 0; i < _parsedMovs.length; i++){
     var m = _parsedMovs[i];
-    var hash = await sha256Short(conta + "|" + m.data + "|" + m.valor + "|" + m.descricao);
+    var hash = await sha256Short(conta + "|" + m.data + "|" + m.valor + "|" + m.descricao + "|" + m.saldo_apos + "|" + i);
     chunk.push({
       extrato_id: extratoId,
       conta: conta,
@@ -3493,12 +3493,15 @@ function renderConciliacao(){
   var kpisEl = document.getElementById("concKpis");
   var filtEl = document.getElementById("concFiltros");
 
+  var bulkEl = document.getElementById("concBulkActions");
   if(_allMovs.length === 0){
     el.innerHTML = '<div class="empty"><div class="empty-icon">🔗</div>Nenhum extrato importado ainda.</div>';
     kpisEl.style.display = "none";
     filtEl.style.display = "none";
+    if(bulkEl) bulkEl.style.display = "none";
     return;
   }
+  if(bulkEl) bulkEl.style.display = "flex";
 
   // Filtros
   var status = document.getElementById("concStatusFilter").value;
@@ -3655,6 +3658,42 @@ async function criarCompDeMov(){
   } else {
     showToast("Dados do extrato preenchidos · escolhe fornecedor e categoria");
   }
+}
+
+async function ignorarTransferenciasInternas(){
+  if(!confirm("Marcar como IGNORADAS todas as entradas Pix recebido de 'LG LOCACOES'? (recargas internas, não são receitas)")) return;
+  var candidatos = _allMovs.filter(function(m){
+    if(m.ignorado || m.conciliado) return false;
+    if(m.valor <= 0) return false; // só entradas
+    var desc = (m.descricao || "").toUpperCase();
+    return desc.indexOf("LG LOCACOES") >= 0 || desc.indexOf("LG LOCAÇÕES") >= 0 || desc.indexOf("TURISMO LTDA") >= 0;
+  });
+  if(candidatos.length === 0){ showToast("Nenhuma transferência interna pendente"); return; }
+  showToast("Marcando " + candidatos.length + " como ignoradas...");
+  var now = new Date().toISOString();
+  var user = currentUser.username || "system";
+  // Batch PATCH: fazemos em paralelo
+  var ids = candidatos.map(function(m){ return m.id; });
+  // PostgREST aceita in=(a,b,c) para where
+  var r = await api("movimentos_bancarios?id=in.(" + ids.join(",") + ")", "PATCH", {
+    ignorado: true,
+    conciliado_at: now,
+    conciliado_por: user,
+    observacoes: 'Transferência interna LG → LG'
+  });
+  if(r === null){ showToast("Erro"); return; }
+  showToast(candidatos.length + " marcadas como ignoradas ✓");
+  await loadMovimentos();
+  renderConciliacao();
+}
+
+async function apagarExtratos(){
+  if(!confirm("APAGAR todos os extratos importados e seus movimentos? (NÃO apaga comprobantes nem conciliações passadas)")) return;
+  var r1 = await api("movimentos_bancarios?id=gt.0", "DELETE");
+  var r2 = await api("extratos_bancarios?id=gt.0", "DELETE");
+  showToast("Extratos apagados ✓");
+  _allMovs = [];
+  renderConciliacao();
 }
 
 async function goToConciliacao(){
@@ -3824,6 +3863,10 @@ function init(){
     var el = document.getElementById(id);
     if(el) el.addEventListener("change", renderConciliacao);
   });
+  var btnIgnInt = document.getElementById("btnIgnorarInternas");
+  if(btnIgnInt) btnIgnInt.addEventListener("click", ignorarTransferenciasInternas);
+  var btnApag = document.getElementById("btnApagarExtratos");
+  if(btnApag) btnApag.addEventListener("click", apagarExtratos);
 
   // ─── Retiros Sócios ───
   document.querySelectorAll(".chip-btn[data-ret-periodo]").forEach(function(b){
