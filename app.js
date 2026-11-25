@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.12.1 · Excel fornecedores com revisão · 2026-11-25");
+console.log("NORDAPP v0.12.2 · Parser Bradesco + contas · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.12.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.12.2 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -3395,7 +3395,105 @@ async function parsePDFExtrato(file){
   }
   console.log("[PDF parse] texto extraído:", fullText.length, "chars");
   console.log("[PDF parse] amostra:", fullText.slice(0, 500));
-  return parsePDFExtratoText(fullText);
+  // Detecta banco pelo conteúdo e escolhe parser
+  var low = fullText.slice(0, 2000).toLowerCase();
+  if(low.indexOf("bradesco") >= 0 || low.indexOf("facilcred") >= 0){
+    console.log("[PDF parse] detectado: BRADESCO");
+    return parsePDFBradesco(fullText);
+  }
+  if(low.indexOf("banco inter") >= 0 || low.indexOf("pix enviado") >= 0 || low.indexOf("pix recebido") >= 0){
+    console.log("[PDF parse] detectado: INTER");
+    return parsePDFExtratoText(fullText);
+  }
+  // Fallback: tenta Inter primeiro, se nada → Bradesco
+  var r = parsePDFExtratoText(fullText);
+  if(r.movimentos.length === 0) r = parsePDFBradesco(fullText);
+  return r;
+}
+
+// ─── Parser BRADESCO ───
+// Formato: "DD/MM/YYYY LANÇAMENTO ... DCTO CREDITO DEBITO SALDO"
+// Linhas podem ter o lançamento quebrado em múltiplas linhas
+function parsePDFBradesco(full){
+  var movs = [];
+  var dataIni = null, dataFim = null, saldoFinal = null;
+  var periodoMatch = full.match(/(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})/);
+  if(periodoMatch){
+    dataIni = brDateToISO(periodoMatch[1]);
+    dataFim = brDateToISO(periodoMatch[2]);
+  }
+  // Saldo total (R$ no cabeçalho)
+  var saldoMatch = full.match(/Total\s*Dispon[íi]vel.*?[\d\.]+,\d{2}\s+([\d\.]+,\d{2})/i);
+  if(saldoMatch) saldoFinal = parseBRMoney(saldoMatch[1]);
+
+  var lines = full.split("\n").map(function(l){ return l.trim(); }).filter(function(l){ return l; });
+
+  var curDate = null;
+  var curLancamento = "";
+
+  // Regex para linha com valores: "... [dcto num] credito|debito saldo"
+  // Padrão: termina com ... NUM VAL,VV VAL,VV   onde a última é saldo e penúltima é o valor
+  //         ou ... NUM -VAL,VV VAL,VV
+  // dcto é um número (geralmente)
+  var reValor = /(\S+?)\s+(-?[\d\.]+,\d{2})\s+(-?[\d\.]+,\d{2})\s*$/;
+  // Data no início
+  var reData = /^(\d{2}\/\d{2}\/\d{4})\s+(.+)$/;
+
+  function flushMov(dcto, valor, saldo, dateOverride){
+    var dt = dateOverride || curDate;
+    if(!dt) return;
+    var desc = curLancamento.trim();
+    if(!desc) return;
+    // negative if contains "-" before valor (débito), else positive (crédito)
+    movs.push({
+      data: dt,
+      tipo: desc.split(/\s+/)[0] || "",
+      descricao: desc,
+      valor: valor,
+      saldo_apos: saldo
+    });
+    curLancamento = "";
+  }
+
+  for(var i = 0; i < lines.length; i++){
+    var line = lines[i];
+    // Nova data?
+    var dm = reData.exec(line);
+    if(dm){
+      curDate = brDateToISO(dm[1]);
+      line = dm[2].trim();
+      if(!line) continue;
+    }
+    // Saldo anterior / reservas: ignorar
+    if(/SALDO ANTERIOR/i.test(line)) continue;
+
+    // Verifica se a linha termina com valor (dcto + valor + saldo)
+    var vm = reValor.exec(line);
+    if(vm){
+      // Antes do match, pode ter texto adicional do lançamento
+      var antes = line.slice(0, vm.index).trim();
+      var dcto = vm[1];
+      var val1 = parseBRMoney(vm[2].replace('-',''));
+      if(vm[2].indexOf('-') === 0) val1 = -val1;
+      var saldo = parseBRMoney(vm[3].replace('-',''));
+      if(vm[3].indexOf('-') === 0) saldo = -saldo;
+      curLancamento = (curLancamento + " " + antes).trim();
+      // Se dcto não parece número (é texto), inclui no lançamento
+      if(!/^\d+$/.test(dcto)) curLancamento = (curLancamento + " " + dcto).trim();
+      flushMov(dcto, val1, saldo);
+    } else {
+      // Linha de continuação do lançamento
+      curLancamento = (curLancamento + " " + line).trim();
+    }
+  }
+
+  // Filtra ruído: rentab invest, tarifas pequenas (opcional)
+  movs = movs.filter(function(m){
+    // Descartar lançamentos sem valor significativo
+    return m.descricao && m.descricao.length > 2;
+  });
+
+  return { movimentos: movs, data_ini: dataIni, data_fim: dataFim, saldo_final: saldoFinal };
 }
 
 function parsePDFExtratoText(full){
