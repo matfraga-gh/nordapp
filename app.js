@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.12.2 · Parser Bradesco + contas · 2026-11-25");
+console.log("NORDAPP v0.12.3 · CNPJ pix_tipo · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.12.2 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.12.3 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
