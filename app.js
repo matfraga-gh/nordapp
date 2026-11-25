@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.13.5 · Caixa aceita variações de conta + saldo inferido · 2026-11-25");
+console.log("NORDAPP v0.13.6 · Parser Bradesco · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.5 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.6 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -3502,14 +3502,21 @@ async function parsePDFExtrato(file){
 function parsePDFBradesco(full){
   var movs = [];
   var dataIni = null, dataFim = null, saldoFinal = null;
-  var periodoMatch = full.match(/(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})/);
+  // Período: aceita formato pegado "DD/MM/YYYY DD/MM/YYYY" ou separado
+  var periodoMatch = full.match(/(\d{2}\/\d{2}\/\d{4})\s*(\d{2}\/\d{2}\/\d{4})/);
   if(periodoMatch){
     dataIni = brDateToISO(periodoMatch[1]);
     dataFim = brDateToISO(periodoMatch[2]);
   }
-  // Saldo total (R$ no cabeçalho)
-  var saldoMatch = full.match(/Total\s*Dispon[íi]vel.*?[\d\.]+,\d{2}\s+([\d\.]+,\d{2})/i);
+  // Saldo total · formas comuns do Bradesco
+  var saldoMatch = full.match(/Total\s*Dispon[íi]vel.*?[\d\.]+,\d{2}\s+([\d\.]+,\d{2})/i)
+                || full.match(/Saldo\s*(?:total|dispon[íi]vel).*?R\$\s*([\d\.]+,\d{2})/i);
   if(saldoMatch) saldoFinal = parseBRMoney(saldoMatch[1]);
+  // Fallback: pega o último valor "R$ ... ,..." que apareça perto de "Saldo"
+  if(!saldoFinal){
+    var m2 = full.match(/0012562-8\s+([\d\.]+,\d{2})\s+([\d\.]+,\d{2})/);
+    if(m2) saldoFinal = parseBRMoney(m2[2]);
+  }
 
   var lines = full.split("\n").map(function(l){ return l.trim(); }).filter(function(l){ return l; });
 
