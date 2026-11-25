@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.13.0 · Camera capture + Pedido WhatsApp · 2026-11-25");
+console.log("NORDAPP v0.13.1 · Pagos consolidado + Anulados audit · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -305,6 +305,7 @@ var HUB_CONFIG = {
     view: "viewHubAdmin",
     tiles: [
       { id:"categorias", icon:"🗂", title:"Categorias", sub:"Gastos (DRE)" },
+      { id:"anulados", icon:"🗑", title:"Anulados", sub:"Auditoria de movimentos apagados", onlyRoles:["master","administracao","auditor"] },
       { id:"usuarios", icon:"👥", title:"Usuários", sub:"CRUD", onlyRoles:["master"] },
       { id:"permissoes", icon:"🔐", title:"Permissões", sub:"Por role", onlyRoles:["master"] },
       { id:"configuracoes", icon:"⚙", title:"Configurações", sub:"Regime SN, taxas, dados LG" },
@@ -356,6 +357,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "retiros_socios"){ goToRetiros(); return; }
   if(moduleId === "conciliacao"){ goToConciliacao(); return; }
   if(moduleId === "pessoal"){ goToPessoal(); return; }
+  if(moduleId === "anulados"){ goToAnulados(); return; }
   if(moduleId === "simples_nacional"){ goToSimples(); return; }
   if(moduleId === "comissoes"){ goToComissoes(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
@@ -1610,15 +1612,12 @@ async function copiarPedidoWhatsApp(){
 }
 
 function renderBandeja(){
-  var per = getPagPeriodo();
   var centro = document.getElementById("bandejaCentroFilter").value;
   var forn = document.getElementById("bandejaFornFilter").value;
 
-  // Pendentes e parciais apenas
+  // Pendentes e parciais apenas · SEM filtro de período (pendente é pendente até ser pago)
   var list = _allComps.filter(function(c){
     if(c.estado !== 'pendente' && c.estado !== 'pago_parcial') return false;
-    if(per.ini && (c.data_competencia || "") < per.ini) return false;
-    if(per.fim && (c.data_competencia || "") > per.fim) return false;
     if(centro && c.centro_custo !== centro) return false;
     if(forn && String(c.fornecedor_id) !== forn) return false;
     return true;
@@ -4561,6 +4560,60 @@ async function deleteEmpregado(){
 async function goToPessoal(){
   showView("viewPessoal");
   await renderPessoal();
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO ANULADOS (Auditoria de movimentos apagados)
+// ═════════════════════════════════════════════════════════════════════
+async function renderAnulados(){
+  // Busca comprobantes anulados (não usa cache pois pode ter estado antigo)
+  var list = await api("comprobantes?select=*,fornecedores(nome),categorias_dre(nome)&estado=eq.anulado&order=anulado_at.desc&limit=5000") || [];
+
+  var el = document.getElementById("anuBody");
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🗑</div>Nenhum comprobante anulado.</div>';
+    document.getElementById("anuKpis").innerHTML = "";
+    document.getElementById("anuSubtitle").textContent = "0 anulados";
+    return;
+  }
+
+  var total = 0; list.forEach(function(c){ total += Number(c.valor_total) || 0; });
+  var porUsuario = {};
+  list.forEach(function(c){
+    var u = c.anulado_por || "—";
+    porUsuario[u] = (porUsuario[u] || 0) + 1;
+  });
+  var topUser = Object.keys(porUsuario).sort(function(a,b){ return porUsuario[b]-porUsuario[a]; })[0];
+
+  document.getElementById("anuKpis").innerHTML =
+    '<div class="ing-kpi hero span2"><div class="ing-kpi-label">Total anulado</div><div class="ing-kpi-value">'+fmtBRL(total)+'</div><div class="ing-kpi-sub">'+list.length+' movimentos</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Quem anulou mais</div><div class="ing-kpi-value" style="font-size:14px">'+escapeHtml(topUser || "—")+'</div><div class="ing-kpi-sub">'+(porUsuario[topUser]||0)+' anulações</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Usuários</div><div class="ing-kpi-value">'+Object.keys(porUsuario).length+'</div></div>';
+
+  var html = '<div class="ing-table"><div class="ing-table-title">Movimentos anulados</div>' +
+    '<div class="ing-table-row header"><div>Data · Quem</div><div></div><div></div><div>R$</div><div></div></div>';
+  list.forEach(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "—";
+    var quando = c.anulado_at ? new Date(c.anulado_at).toLocaleDateString('pt-BR') : "—";
+    html += '<div class="ing-table-row" data-anu-id="'+c.id+'" title="'+escapeHtml(c.anulado_motivo||'')+'">' +
+      '<div>'+quando+' · <b>'+escapeHtml(c.anulado_por||"—")+'</b><br><span style="font-size:11px;opacity:0.7">'+escapeHtml(forn)+' · '+escapeHtml(c.descricao||"")+'</span><br><span style="font-size:11px;color:#f0d890">motivo: '+escapeHtml(c.anulado_motivo||"—")+'</span></div>' +
+      '<div></div><div></div>' +
+      '<div>'+fmtMoney(c.valor_total)+'</div><div></div>' +
+    '</div>';
+  });
+  html += '<div class="ing-table-row total"><div>Total</div><div></div><div></div><div>'+fmtMoney(total)+'</div><div></div></div></div>';
+
+  el.innerHTML = html;
+  document.getElementById("anuSubtitle").textContent = list.length + " comprobantes anulados";
+
+  el.querySelectorAll("[data-anu-id]").forEach(function(r){
+    r.addEventListener("click", function(){ openCompModal(r.dataset.anuId); });
+  });
+}
+
+async function goToAnulados(){
+  showView("viewAnulados");
+  await renderAnulados();
 }
 
 function init(){

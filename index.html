@@ -582,6 +582,22 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO ANULADOS (Auditoria) ═════════════════════════════════════ -->
+<div id="viewAnulados" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubAdmin">← Admin</button>
+      <div class="module-title-block">
+        <div class="module-title">🗑 Anulados</div>
+        <div class="module-subtitle" id="anuSubtitle">Auditoria</div>
+      </div>
+    </div>
+    <div class="field-hint" style="max-width:560px;margin:0 auto 12px;text-align:center;color:rgba(255,255,255,0.7)">Histórico de comprobantes anulados · quem, quando, por quê</div>
+    <div id="anuKpis" class="ing-kpis"></div>
+    <div id="anuBody"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
 <!-- ══ MÓDULO PESSOAL (Funcionários) ═══════════════════════════════════ -->
 <div id="viewPessoal" class="view">
   <div class="content">
@@ -1023,6 +1039,12 @@
       </div>
     </div>
 
+    <!-- Despesa rápida · sempre visível, em qualquer tab -->
+    <div class="module-actions">
+      <button class="btn-primary" id="btnDespesaRapida">⚡ Despesa rápida (já paga)</button>
+      <div class="field-hint" style="text-align:center;margin-top:4px;color:rgba(255,255,255,0.6)">Para compras pagas no momento (sem fatura prévia)</div>
+    </div>
+
     <!-- Tabs -->
     <div class="tabs-row">
       <button class="tab-btn active" data-tab="bandeja">Bandeja</button>
@@ -1050,11 +1072,9 @@
       <div class="kpi-row" id="bandejaKpis"></div>
 
       <div class="module-actions">
-        <button class="btn-primary" id="btnDespesaRapida">⚡ Despesa rápida (já paga)</button>
-        <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <div style="display:flex;justify-content:flex-end">
           <button class="btn-ghost" id="btnPedidoWhatsApp">📱 Copiar para WhatsApp</button>
         </div>
-        <div class="field-hint" style="text-align:center;margin-top:4px;color:rgba(255,255,255,0.6)">Para gastos sem fatura (propina, nafta, compra pequena)</div>
       </div>
 
       <div class="filter-row">
@@ -1152,6 +1172,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.13.0"></script>
+<script src="app.js?v=0.13.1"></script>
 </body>
 </html>
