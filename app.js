@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.9.0 · Conciliação bancária comprobantes · 2026-11-24");
+console.log("NORDAPP v0.9.1 · PDF parse robusto + diagnóstico comprobantes · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -3219,19 +3219,24 @@ async function parsePDFExtrato(file){
   for(var i = 1; i <= pdf.numPages; i++){
     var page = await pdf.getPage(i);
     var tc = await page.getTextContent();
-    // Juntar text items preservando linha quando há diferença grande em y
-    var lastY = null;
-    var currentLine = "";
+    // Agrupar items por y (linhas). Em PDF, y origem é bottom-left; items em mesma linha tem y similar.
+    // 1) agrupar por y (bucket 1 unidade)
+    var lines = {};
     tc.items.forEach(function(it){
-      if(lastY !== null && Math.abs(it.transform[5] - lastY) > 2){
-        fullText += currentLine + "\n";
-        currentLine = "";
-      }
-      currentLine += it.str + " ";
-      lastY = it.transform[5];
+      var y = Math.round(it.transform[5]);
+      if(!lines[y]) lines[y] = [];
+      lines[y].push({ x: it.transform[4], str: it.str });
     });
-    if(currentLine) fullText += currentLine + "\n";
+    // 2) ordenar linhas por y descendente (topo → base), e dentro de cada linha por x crescente
+    var ys = Object.keys(lines).map(Number).sort(function(a,b){ return b - a; });
+    ys.forEach(function(y){
+      var items = lines[y].sort(function(a,b){ return a.x - b.x; });
+      var line = items.map(function(it){ return it.str; }).join(" ").replace(/\s+/g, " ").trim();
+      if(line) fullText += line + "\n";
+    });
   }
+  console.log("[PDF parse] texto extraído:", fullText.length, "chars");
+  console.log("[PDF parse] amostra:", fullText.slice(0, 500));
   return parsePDFExtratoText(fullText);
 }
 
@@ -3260,10 +3265,12 @@ function parsePDFExtratoText(full){
       }
     }
     // Transação: Tipo: "desc" -R$ X,XX R$ Saldo
-    var tm = line.match(/^(Pix enviado|Pix recebido|Pagamento efetuado|Boleto pago|TED enviado|TED recebido|D[ée]bito|Transfer[êe]ncia|Rendimento|Dep[óo]sito|Tarifa):\s*"(.+?)"\s*(-?R\$\s*[\d\.]+,\d{2})\s*(-?R\$\s*[\d\.]+,\d{2})/);
+    // Normaliza aspas curvas → aspas normais
+    var ln = line.replace(/[""]/g, '"');
+    var tm = ln.match(/(Pix enviado|Pix recebido|Pagamento efetuado|Boleto pago|TED enviado|TED recebido|D[ée]bito|Transfer[êe]ncia|Rendimento|Dep[óo]sito|Tarifa)\s*:\s*"(.+?)"\s*(-?\s*R\$\s*[\d\.]+,\d{2})\s*(-?\s*R\$\s*[\d\.]+,\d{2})/);
     if(tm && curDate){
       var tipo = tm[1], desc = tm[2].trim();
-      var valorTxt = tm[3], saldoTxt = tm[4];
+      var valorTxt = tm[3].replace(/\s/g,''), saldoTxt = tm[4].replace(/\s/g,'');
       var signal = valorTxt.indexOf('-') === 0 ? -1 : 1;
       var valor = parseBRMoney(valorTxt.replace('-','')) * signal;
       var saldo = parseBRMoney(saldoTxt.replace('-','')) * (saldoTxt.indexOf('-') === 0 ? -1 : 1);
@@ -3313,10 +3320,27 @@ async function processarUpload(){
   }
 
   if(!file){ showToast("Selecione um arquivo PDF"); return; }
-  showToast("Parseando PDF...");
-  var result = await parsePDFExtrato(file);
-  if(!result || result.movimentos.length === 0){
-    showToast("Não achei movimentos no PDF");
+  var btn = document.getElementById("btnProcessarUpload");
+  var origTxt = btn.textContent;
+  btn.textContent = "Parseando PDF...";
+  btn.disabled = true;
+  var result = null;
+  try {
+    result = await parsePDFExtrato(file);
+  } catch(e){
+    console.error("Erro parse PDF:", e);
+    showToast("Erro: " + (e.message || e));
+    btn.textContent = origTxt;
+    btn.disabled = false;
+    return;
+  }
+  btn.disabled = false;
+  if(!result || !result.movimentos || result.movimentos.length === 0){
+    showToast("Não achei movimentos no PDF · Abri o console (F12) para ver o diagnóstico");
+    btn.textContent = origTxt;
+    var pv = document.getElementById("upPreview");
+    pv.innerHTML = '<div class="dre-warning">⚠ Nenhum movimento identificado. O formato do PDF pode ser diferente do esperado. Verificá o console do browser (F12) para ver o texto extraído.</div>';
+    pv.style.display = "block";
     return;
   }
   _parsedMovs = result.movimentos;
