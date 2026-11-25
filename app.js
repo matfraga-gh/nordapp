@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.13.2 · Saldos por meio no Caixa · 2026-11-25");
+console.log("NORDAPP v0.13.3 · DRE comparativo em todas seções · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.2 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.3 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -2070,15 +2070,20 @@ function fmtPct(v, base){
 }
 
 // Renderiza uma seção com header colorido + linhas + opcional subitems
-function dreRenderSec(cfg, dados, base, subitemsMap){
+function dreRenderSec(cfg, dados, base, subitemsMap, totalAnt){
   // dados: { "nome categoria": valor, ... }
   // subitemsMap (opcional): { "nome categoria": [{label, valor}, ...] }
+  // totalAnt (opcional): total do mês anterior para esta seção · habilita badge
   if(!dados || Object.keys(dados).length === 0) return "";
   var total = 0;
   Object.keys(dados).forEach(function(k){ total += dados[k]; });
   var sinal = cfg.sinal || '−';
+  var varHtml = "";
+  if(totalAnt !== undefined && totalAnt !== null){
+    varHtml = ' ' + dreVarBadge(total, totalAnt);
+  }
   var html = '<div class="dre-sec-head '+cfg.cls+'">' +
-               '<div class="sh-label">'+sinal+' '+cfg.titulo+'</div>' +
+               '<div class="sh-label">'+sinal+' '+cfg.titulo+varHtml+'</div>' +
                '<div class="sh-valor">'+fmtMoney(total)+'</div>' +
                '<div class="sh-pct">'+fmtPct(total, base)+'</div>' +
              '</div>';
@@ -2215,7 +2220,7 @@ async function renderDRE(){
         receitaDados[k + " (comprobante)"] = grupos.receita[k];
       });
     }
-    html += dreRenderSec({ cls:'sec-receita', titulo:'Receitas', sinal:'+' }, receitaDados, base, receitaSubs);
+    html += dreRenderSec({ cls:'sec-receita', titulo:'Receitas', sinal:'+' }, receitaDados, base, receitaSubs, totAnt ? totAnt.receita : undefined);
   } else if(reservasResult.ok){
     html += '<div class="dre-warning">Nenhuma receita em '+dreMesLabel(y,m)+'. Confira se há reservas com check-in neste mês (status ≠ cancelada).</div>';
   }
@@ -2223,16 +2228,17 @@ async function renderDRE(){
   // Comparativo com mês anterior (opcional)
   var comparar = document.getElementById("dreComparar").checked;
   var totAnt = null;
+  var custoOpAnt, despAdmAnt, tributosAnt, despFinAnt, naoOpAnt;
   if(comparar){
     var ym = _dreMes.y, mm = _dreMes.m - 1;
     if(mm < 0){ mm = 11; ym--; }
     var gruposAnt = agruparDespesasMes(ym, mm, incluirConsorcio);
     function sgAnt(g){ var s = 0; if(gruposAnt[g]) Object.keys(gruposAnt[g]).forEach(function(k){ s += gruposAnt[g][k]; }); return s; }
-    var custoOpAnt = sgAnt('custo_operacional');
-    var despAdmAnt = sgAnt('despesa_admin');
-    var tributosAnt = sgAnt('tributos');
-    var despFinAnt = sgAnt('despesa_financeira');
-    var naoOpAnt = sgAnt('nao_operacional');
+    custoOpAnt = sgAnt('custo_operacional');
+    despAdmAnt = sgAnt('despesa_admin');
+    tributosAnt = sgAnt('tributos');
+    despFinAnt = sgAnt('despesa_financeira');
+    naoOpAnt = sgAnt('nao_operacional');
     // Receitas do mês anterior
     var receitaAnt = 0;
     if(reservasResult.ok){
@@ -2247,21 +2253,21 @@ async function renderDRE(){
   }
 
   // CUSTO OP
-  html += dreRenderSec({ cls:'sec-custo-op', titulo:'Custo operacional' }, grupos.custo_operacional, base);
+  html += dreRenderSec({ cls:'sec-custo-op', titulo:'Custo operacional' }, grupos.custo_operacional, base, null, comparar ? custoOpAnt : undefined);
   // Resultado operacional bruto
   html += dreTotalRow('tot-bruto', 'Resultado operacional bruto', resultadoOp, base, '', totAnt ? totAnt.op : undefined);
 
   // ADM
-  html += dreRenderSec({ cls:'sec-despesa-admin', titulo:'Despesas administrativas' }, grupos.despesa_admin, base);
+  html += dreRenderSec({ cls:'sec-despesa-admin', titulo:'Despesas administrativas' }, grupos.despesa_admin, base, null, comparar ? despAdmAnt : undefined);
   // TRIBUTOS
-  html += dreRenderSec({ cls:'sec-tributos', titulo:'Tributos' }, grupos.tributos, base);
+  html += dreRenderSec({ cls:'sec-tributos', titulo:'Tributos' }, grupos.tributos, base, null, comparar ? tributosAnt : undefined);
   // EBITDA
   html += dreTotalRow('tot-ebitda', 'EBITDA', ebitda, base, '', totAnt ? totAnt.ebitda : undefined);
 
   // FINANCEIRAS
-  html += dreRenderSec({ cls:'sec-despesa-fin', titulo:'Despesas financeiras' }, grupos.despesa_financeira, base);
+  html += dreRenderSec({ cls:'sec-despesa-fin', titulo:'Despesas financeiras' }, grupos.despesa_financeira, base, null, comparar ? despFinAnt : undefined);
   // NÃO OP
-  html += dreRenderSec({ cls:'sec-nao-op', titulo:'Não operacional' }, grupos.nao_operacional, base);
+  html += dreRenderSec({ cls:'sec-nao-op', titulo:'Não operacional' }, grupos.nao_operacional, base, null, comparar ? naoOpAnt : undefined);
   // LÍQUIDO
   html += dreTotalRow('tot-liquido', 'Resultado líquido', resultadoLiq, base, resultadoLiq < 0 ? 'negativo' : '', totAnt ? totAnt.liq : undefined);
 
