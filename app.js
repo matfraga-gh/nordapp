@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.12.3 · CNPJ pix_tipo · 2026-11-25");
+console.log("NORDAPP v0.13.0 · Camera capture + Pedido WhatsApp · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.12.3 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -1545,6 +1545,68 @@ function badgeVencimento(iso){
   if(d === 0) return '<span class="badge-venc hoje">vence hoje</span>';
   if(d <= 7) return '<span class="badge-venc semana">em '+d+'d</span>';
   return '<span class="badge-venc ok">em '+d+'d</span>';
+}
+
+async function copiarPedidoWhatsApp(){
+  // Pega os pendentes/parciais da bandeja (mesma lógica que renderBandeja)
+  var per = getPagPeriodo();
+  var centro = document.getElementById("bandejaCentroFilter").value;
+  var forn = document.getElementById("bandejaFornFilter").value;
+  var list = _allComps.filter(function(c){
+    if(c.estado !== 'pendente' && c.estado !== 'pago_parcial') return false;
+    if(per.ini && (c.data_competencia || "") < per.ini) return false;
+    if(per.fim && (c.data_competencia || "") > per.fim) return false;
+    if(centro && c.centro_custo !== centro) return false;
+    if(forn && String(c.fornecedor_id) !== forn) return false;
+    return true;
+  });
+  if(list.length === 0){ showToast("Sem pendentes para enviar"); return; }
+
+  // Agrupa por urgência
+  var vencidos = [], semana = [], prox = [], depois = [], semVto = [];
+  list.forEach(function(c){
+    var saldo = Number(c.valor_total) - Number(c.valor_pago || 0);
+    c._saldo = saldo;
+    var d = diasAteVencimento(c.data_vencimento);
+    if(d === null) semVto.push(c);
+    else if(d < 0) vencidos.push(c);
+    else if(d <= 7) semana.push(c);
+    else if(d <= 14) prox.push(c);
+    else depois.push(c);
+  });
+
+  function bloco(titulo, arr){
+    if(arr.length === 0) return "";
+    var tot = arr.reduce(function(s,c){ return s + c._saldo; }, 0);
+    var txt = "\n*" + titulo + "*  _R$ " + tot.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) + "_\n";
+    arr.sort(function(a,b){ return (a.data_vencimento||"9999").localeCompare(b.data_vencimento||"9999"); });
+    arr.forEach(function(c){
+      var forn = c.fornecedores ? c.fornecedores.nome : "—";
+      var venc = c.data_vencimento ? ' · vence ' + fmtDate(c.data_vencimento) : '';
+      txt += "• " + forn + " · R$ " + c._saldo.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) + venc + "\n";
+    });
+    return txt;
+  }
+
+  var total = list.reduce(function(s,c){ return s + c._saldo; }, 0);
+  var hoje = new Date().toLocaleDateString('pt-BR');
+
+  var msg = "💼 *Pedido de fundos · " + hoje + "*\n";
+  msg += "_" + list.length + " comprobantes · Total R$ " + total.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) + "_\n";
+  msg += bloco("⚠ VENCIDOS", vencidos);
+  msg += bloco("📅 Esta semana", semana);
+  msg += bloco("📆 Próxima semana", prox);
+  msg += bloco("🗓 Depois", depois);
+  msg += bloco("❓ Sem vencimento", semVto);
+
+  // Copiar al clipboard
+  try {
+    await navigator.clipboard.writeText(msg);
+    showToast("Copiado ✓ · colá no WhatsApp");
+  } catch(e){
+    // Fallback: mostrar em prompt
+    window.prompt("Copiá este texto e colá no WhatsApp:", msg);
+  }
 }
 
 function renderBandeja(){
@@ -4773,6 +4835,10 @@ function init(){
   });
   var btnExpIng = document.getElementById("btnExportIng");
   if(btnExpIng) btnExpIng.addEventListener("click", exportIngresosExcel);
+
+  // Pedido WhatsApp
+  var btnPWA = document.getElementById("btnPedidoWhatsApp");
+  if(btnPWA) btnPWA.addEventListener("click", copiarPedidoWhatsApp);
 
   // Despesa rápida
   var btnRap = document.getElementById("btnDespesaRapida");

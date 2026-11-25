@@ -350,8 +350,8 @@
     <textarea id="cfObs" rows="2" placeholder="Notas internas, número da NF, etc."></textarea>
 
     <label>Anexo (PDF, imagem)</label>
-    <input type="file" id="cfAnexo" accept=".pdf,.jpg,.jpeg,.png,.webp">
-    <div class="field-hint" id="cfAnexoHint">Opcional · até 10MB</div>
+    <input type="file" id="cfAnexo" accept="image/*,.pdf" capture="environment">
+    <div class="field-hint" id="cfAnexoHint">Opcional · foto do ticket, print do WhatsApp ou PDF · até 10MB</div>
 
     <div class="modal-footer">
       <button class="btn-secondary" id="btnAnularComp" style="display:none">Anular</button>
@@ -1051,6 +1051,9 @@
 
       <div class="module-actions">
         <button class="btn-primary" id="btnDespesaRapida">⚡ Despesa rápida (já paga)</button>
+        <div style="display:flex;justify-content:flex-end;margin-top:6px">
+          <button class="btn-ghost" id="btnPedidoWhatsApp">📱 Copiar para WhatsApp</button>
+        </div>
         <div class="field-hint" style="text-align:center;margin-top:4px;color:rgba(255,255,255,0.6)">Para gastos sem fatura (propina, nafta, compra pequena)</div>
       </div>
 
@@ -1149,6 +1152,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.12.3"></script>
+<script src="app.js?v=0.13.0"></script>
 </body>
 </html>
