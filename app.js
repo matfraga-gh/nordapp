@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.11.0 · Módulo Pessoal · 2026-11-25");
+console.log("NORDAPP v0.11.1 · Fix nomes colunas fornecedores · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.11.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.11.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -286,8 +286,7 @@ var HUB_CONFIG = {
       { id:"pagos", icon:"💳", title:"Pagos", sub:"Bandeja e estado de conta" },
       { id:"conciliacao", icon:"🔗", title:"Conciliação", sub:"Extratos bancários" },
       { id:"fornecedores", icon:"🏢", title:"Fornecedores", sub:"CRUD e estado de conta" },
-      { id:"pessoal", icon:"👤", title:"Pessoal", sub:"Empregados e salários" },
-      { id:"socios", icon:"🤝", title:"Sócios", sub:"Retiros e nivelação", onlyRoles:["master","administracao","auditor"] }
+      { id:"pessoal", icon:"👤", title:"Pessoal", sub:"Empregados e salários" }
     ]
   },
   hubReportes: {
@@ -4099,7 +4098,7 @@ async function renderPessoal(){
     list = list.filter(function(f){
       return (f.nome || "").toLowerCase().indexOf(search) >= 0
           || (f.cargo || "").toLowerCase().indexOf(search) >= 0
-          || (f.cnpj || "").indexOf(search) >= 0;
+          || (f.cnpj_cpf || "").indexOf(search) >= 0;
     });
   }
   list.sort(function(a,b){ return (a.nome||"").localeCompare(b.nome||""); });
@@ -4136,7 +4135,7 @@ async function renderPessoal(){
     var pags = pagamentosDoEmpregado(f.id);
     var ultimoPg = pags[0];
     var sub = (f.cargo || "Sem cargo") +
-              (f.pix ? ' <span class="pix">pix</span>' : '');
+              (f.chave_pix ? ' <span class="pix">pix</span>' : '');
     var valorHtml = f.salario_base ?
       '<div class="pes-item-valor">'+fmtBRL(f.salario_base)+'<span class="lbl">salário</span></div>' :
       (ultimoPg ? '<div class="pes-item-valor">'+fmtBRL(ultimoPg.valor_total)+'<span class="lbl">último pago</span></div>' : '');
@@ -4162,13 +4161,13 @@ function openEmpModal(id){
 
   document.getElementById("empModalTitle").textContent = f ? "Editar: " + f.nome : "Novo funcionário";
   document.getElementById("ef_nome").value = f ? (f.nome || "") : "";
-  document.getElementById("ef_cpf").value = f ? (f.cnpj || "") : "";
+  document.getElementById("ef_cpf").value = f ? (f.cnpj_cpf || "") : "";
   document.getElementById("ef_admissao").value = f ? (f.data_admissao || "") : "";
   document.getElementById("ef_cargo").value = f ? (f.cargo || "") : "";
   document.getElementById("ef_salario").value = f ? (f.salario_base || "") : "";
   document.getElementById("ef_email").value = f ? (f.email || "") : "";
   document.getElementById("ef_telefone").value = f ? (f.telefone || "") : "";
-  document.getElementById("ef_pix").value = f ? (f.pix || "") : "";
+  document.getElementById("ef_pix").value = f ? (f.chave_pix || "") : "";
   document.getElementById("ef_pix_tipo").value = f ? (f.pix_tipo || "") : "";
   document.getElementById("ef_endereco").value = f ? (f.endereco || "") : "";
   document.getElementById("ef_obs").value = f ? (f.comentarios || "") : "";
@@ -4242,13 +4241,13 @@ async function saveEmpregado(){
     nome: nome,
     tipo: 'empregado',
     categoria: 'Pessoal',
-    cnpj: document.getElementById("ef_cpf").value.trim() || null,
+    cnpj_cpf: document.getElementById("ef_cpf").value.trim() || null,
     data_admissao: document.getElementById("ef_admissao").value || null,
     cargo: document.getElementById("ef_cargo").value.trim() || null,
     salario_base: parseFloat(document.getElementById("ef_salario").value) || null,
     email: document.getElementById("ef_email").value.trim() || null,
     telefone: document.getElementById("ef_telefone").value.trim() || null,
-    pix: document.getElementById("ef_pix").value.trim() || null,
+    chave_pix: document.getElementById("ef_pix").value.trim() || null,
     pix_tipo: document.getElementById("ef_pix_tipo").value || null,
     endereco: document.getElementById("ef_endereco").value.trim() || null,
     comentarios: document.getElementById("ef_obs").value.trim() || null
