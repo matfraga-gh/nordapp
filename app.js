@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.9.1 · PDF parse robusto + diagnóstico comprobantes · 2026-11-24");
+console.log("NORDAPP v0.9.3 · Fix _parsedExtra undefined · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.3 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -3205,16 +3205,30 @@ var _allMovs = [];
 var _parsedMovs = null;  // temporário durante upload
 var _parsedConta = null;
 var _parsedArquivo = null;
+var _parsedExtra = null;  // {data_ini, data_fim, saldo_final}
 var _currentMov = null;  // movimento sendo conciliado
 var MESES_PT = {'janeiro':1,'fevereiro':2,'março':3,'marco':3,'abril':4,'maio':5,'junho':6,'julho':7,'agosto':8,'setembro':9,'outubro':10,'novembro':11,'dezembro':12};
 
 async function parsePDFExtrato(file){
   if(typeof pdfjsLib === 'undefined'){
-    showToast("PDF.js não carregou");
-    return null;
+    showToast("PDF.js não carregou · tente recarregar a página");
+    throw new Error("pdfjsLib não disponível");
   }
+  // Garantir worker configurado
+  if(pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc){
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    console.log("[PDF] Worker setado agora:", pdfjsLib.GlobalWorkerOptions.workerSrc);
+  }
+  console.log("[PDF] Iniciando parse. Tamanho:", file.size, "bytes");
   var buf = await file.arrayBuffer();
-  var pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  console.log("[PDF] ArrayBuffer carregado:", buf.byteLength);
+  // Timeout 30s
+  var loadingTask = pdfjsLib.getDocument({data: buf});
+  var pdf = await Promise.race([
+    loadingTask.promise,
+    new Promise(function(_, reject){ setTimeout(function(){ reject(new Error("Timeout 30s · ver console")); }, 30000); })
+  ]);
+  console.log("[PDF] PDF carregado. Páginas:", pdf.numPages);
   var fullText = "";
   for(var i = 1; i <= pdf.numPages; i++){
     var page = await pdf.getPage(i);
