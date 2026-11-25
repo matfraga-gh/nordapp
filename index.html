@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.11.1">
+<link rel="stylesheet" href="styles.css?v=0.12.0">
 </head>
 <body>
 
@@ -333,13 +333,14 @@
         <label>Meio de pagamento</label>
         <select id="cfMeio">
           <option value="">—</option>
-          <option value="banco_inter">Banco Inter · LG</option>
-          <option value="banco_bradesco">Banco Bradesco</option>
-          <option value="banco_itau">Banco Itaú</option>
-          <option value="cartao_corp">Cartão corporativo</option>
-          <option value="pix">Pix</option>
-          <option value="dinheiro">Dinheiro</option>
-          <option value="cripto">Cripto (sócios)</option>
+          <option value="inter_pix">Inter LG · Pix</option>
+          <option value="bradesco_pix">Bradesco LG · Pix</option>
+          <option value="inter_cartao">Cartão Inter LG</option>
+          <option value="bradesco_cartao">Cartão Bradesco LG</option>
+          <option value="dinheiro_brl">Dinheiro R$</option>
+          <option value="dinheiro_usd">Dinheiro US$</option>
+          <option value="dinheiro_ars">Dinheiro AR$</option>
+          <option value="cripto">Cripto</option>
           <option value="outro">Outro</option>
         </select>
       </div>
@@ -382,12 +383,13 @@
     <label>Meio de pagamento</label>
     <select id="pfMeio">
       <option value="">—</option>
-      <option value="banco_inter">Banco Inter · LG</option>
-      <option value="banco_bradesco">Banco Bradesco</option>
-      <option value="banco_itau">Banco Itaú</option>
-      <option value="cartao_corp">Cartão corporativo</option>
-      <option value="pix">Pix</option>
-      <option value="dinheiro">Dinheiro</option>
+      <option value="inter_pix">Inter LG · Pix</option>
+      <option value="bradesco_pix">Bradesco LG · Pix</option>
+      <option value="inter_cartao">Cartão Inter LG</option>
+      <option value="bradesco_cartao">Cartão Bradesco LG</option>
+      <option value="dinheiro_brl">Dinheiro R$</option>
+      <option value="dinheiro_usd">Dinheiro US$</option>
+      <option value="dinheiro_ars">Dinheiro AR$</option>
       <option value="cripto">Cripto</option>
     </select>
 
@@ -449,12 +451,13 @@
 
     <label>Meio de pagamento <span class="req">*</span></label>
     <select id="rfMeio">
-      <option value="dinheiro">Dinheiro</option>
-      <option value="banco_inter">Banco Inter · LG</option>
-      <option value="banco_bradesco">Bradesco</option>
-      <option value="banco_itau">Itaú</option>
-      <option value="cartao_corp">Cartão corp.</option>
-      <option value="pix">Pix</option>
+      <option value="dinheiro_brl">Dinheiro R$</option>
+      <option value="dinheiro_usd">Dinheiro US$</option>
+      <option value="dinheiro_ars">Dinheiro AR$</option>
+      <option value="inter_pix">Inter LG · Pix</option>
+      <option value="bradesco_pix">Bradesco LG · Pix</option>
+      <option value="inter_cartao">Cartão Inter LG</option>
+      <option value="bradesco_cartao">Cartão Bradesco LG</option>
       <option value="cripto">Cripto</option>
       <option value="outro">Outro</option>
     </select>
@@ -741,9 +744,9 @@
     </div>
     <label>Conta <span class="req">*</span></label>
     <select id="upConta">
-      <option value="banco_inter">Banco Inter · LG</option>
-      <option value="banco_bradesco">Bradesco</option>
-      <option value="banco_itau">Itaú</option>
+      <option value="inter_pix">Inter LG · Pix</option>
+      <option value="bradesco_pix">Bradesco LG · Pix</option>
+      <option value="inter_cartao">Cartão Inter LG</option>
     </select>
     <label>Arquivo PDF <span class="req">*</span></label>
     <input type="file" id="upArquivo" accept=".pdf">
@@ -911,10 +914,10 @@
       <div>
         <label>Meio <span class="req">*</span></label>
         <select id="rtMeio">
-          <option value="cripto">Cripto (FIWIND/USDT)</option>
-          <option value="transf_ar">Transfer AR (Macro/terceiro)</option>
-          <option value="banco_inter">Banco Inter · LG</option>
-          <option value="dinheiro">Dinheiro</option>
+          <option value="cripto">Cripto</option>
+          <option value="dinheiro_ars">Dinheiro AR$</option>
+          <option value="inter_pix">Inter LG · Pix</option>
+          <option value="dinheiro_usd">Dinheiro US$</option>
           <option value="outro">Outro</option>
         </select>
       </div>
@@ -1078,12 +1081,12 @@
       <div class="filter-row">
         <select id="realMeioFilter" class="filter-select">
           <option value="">Todos meios</option>
-          <option value="banco_inter">Banco Inter · LG</option>
-          <option value="banco_bradesco">Bradesco</option>
-          <option value="banco_itau">Itaú</option>
-          <option value="cartao_corp">Cartão corp.</option>
-          <option value="pix">Pix</option>
-          <option value="dinheiro">Dinheiro</option>
+          <option value="inter_pix">Inter LG · Pix</option>
+          <option value="bradesco_pix">Bradesco LG · Pix</option>
+          <option value="inter_cartao">Cartão Inter LG</option>
+          <option value="bradesco_cartao">Cartão Bradesco LG</option>
+          <option value="dinheiro_brl">Dinheiro R$</option>
+          <option value="dinheiro_usd">Dinheiro US$</option>
           <option value="cripto">Cripto</option>
           <option value="outro">Outro</option>
         </select>
@@ -1144,6 +1147,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.11.1"></script>
+<script src="app.js?v=0.12.1"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.11.1 · Fix nomes colunas fornecedores · 2026-11-25");
+console.log("NORDAPP v0.12.1 · Excel fornecedores com revisão · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.11.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.12.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -599,45 +599,155 @@ async function exportFornecedoresExcel(){
     showToast("Lista vazia. Carregue os fornecedores primeiro.");
     return;
   }
-  var data = _allFornecedores.map(function(f){
+  if(_allComps.length === 0) await loadComprobantes();
+
+  // ─── Helpers de detecção ───
+  function normNome(s){
+    return String(s || "").toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9 ]/g, " ")
+      .replace(/\s+/g, " ").trim();
+  }
+  // Possível apto/loft (não deveria ser fornecedor)
+  var RE_APTO = /^(apto|apt|loft|quarto|suite|casa|habitacao|hab|unidade|um|room|1\d|2\d|3\d|0\d)\s*[-·.]?\s*\d*$/i;
+
+  // Agrupar por nome normalizado para detectar duplicados
+  var porNorm = {};
+  _allFornecedores.forEach(function(f){
+    var k = normNome(f.nome);
+    if(!porNorm[k]) porNorm[k] = [];
+    porNorm[k].push(f);
+  });
+
+  // Contar comprobantes por fornecedor
+  var compsPorForn = {};
+  _allComps.forEach(function(c){
+    if(!c.fornecedor_id) return;
+    compsPorForn[c.fornecedor_id] = (compsPorForn[c.fornecedor_id] || 0) + 1;
+  });
+
+  // Ordenar alfabético para facilitar revisão
+  var ord = _allFornecedores.slice().sort(function(a,b){
+    return (a.nome || "").localeCompare(b.nome || "");
+  });
+
+  var data = ord.map(function(f){
     var sugerido = sugerirTipoDeCategoria(f.categoria, f.nome);
     var t = FORNECEDOR_TIPOS.find(function(x){return x.id === sugerido;});
+    var obsDudas = [];
+
+    // Duplicados
+    var grupo = porNorm[normNome(f.nome)] || [];
+    if(grupo.length > 1){
+      var outros = grupo.filter(function(g){ return g.id !== f.id; }).map(function(g){ return "#" + g.id; });
+      obsDudas.push("⚠ Possível duplicado com " + outros.join(", "));
+    }
+    // Parece apto
+    if(RE_APTO.test((f.nome || "").trim()) || /\bloft\b|\bapto\b|\bquarto\b|casa nordestina/i.test(f.nome || "")){
+      obsDudas.push("⚠ Parece ser um apto/loft · não é fornecedor");
+    }
+    // Sem tipo
+    if(!f.tipo){
+      obsDudas.push("⚠ Sem tipo definido");
+    }
+    // Sem comprobantes
+    var nComp = compsPorForn[f.id] || 0;
+    if(nComp === 0){
+      obsDudas.push("ℹ Sem comprobantes · pode ser excluído");
+    }
+    // Sem dados de contato
+    if(!f.email && !f.telefone && !f.chave_pix && !f.cnpj_cpf){
+      obsDudas.push("ℹ Sem email/telefone/pix/CPF");
+    }
+
     return {
-      id: f.id,
-      nome: f.nome || "",
-      categoria_legacy: f.categoria || "",
-      tipo_sugerido: sugerido + (t ? " · " + t.label : ""),
-      tipo_definitivo: f.tipo || "",
-      cnpj_cpf: f.cnpj_cpf || "",
-      email: f.email || "",
-      telefone: f.telefone || "",
-      banco_pagto: f.banco_pagto || "",
-      chave_pix: f.chave_pix || "",
-      comentarios: f.comentarios || "",
-      ativo: (f.ativo === false ? "NAO" : "SIM")
+      "ID":              f.id,
+      "Nome":            f.nome || "",
+      "Tipo":            f.tipo || "—",
+      "Tipo sugerido":   (t ? t.emoji + " " + t.label : sugerido),
+      "Categoria legacy": f.categoria || "",
+      "CPF / CNPJ":      f.cnpj_cpf || "",
+      "Email":           f.email || "",
+      "Telefone":        f.telefone || "",
+      "Chave Pix":       f.chave_pix || "",
+      "Banco pagto":     f.banco_pagto || "",
+      "Comprobantes":    nComp,
+      "Comentarios":     f.comentarios || "",
+      "Ativo":           (f.ativo === false ? "NAO" : "SIM"),
+      "⚠ Revisar":        obsDudas.join(" · ")
     };
   });
 
   var wb = XLSX.utils.book_new();
   var ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{wch:5},{wch:30},{wch:30},{wch:32},{wch:20},{wch:22},{wch:30},{wch:18},{wch:14},{wch:26},{wch:50},{wch:6}];
+
+  // Larguras otimizadas
+  ws['!cols'] = [
+    {wch: 5},    // ID
+    {wch: 32},   // Nome
+    {wch: 14},   // Tipo
+    {wch: 26},   // Tipo sugerido
+    {wch: 20},   // Categoria legacy
+    {wch: 20},   // CPF/CNPJ
+    {wch: 28},   // Email
+    {wch: 16},   // Telefone
+    {wch: 24},   // Chave Pix
+    {wch: 16},   // Banco pagto
+    {wch: 8},    // Comprobantes
+    {wch: 40},   // Comentarios
+    {wch: 6},    // Ativo
+    {wch: 60}    // Revisar
+  ];
+  // Freeze primera fila + auto filter em todas colunas
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+  var lastCol = XLSX.utils.encode_col(13); // N
+  ws['!autofilter'] = { ref: "A1:" + lastCol + (data.length + 1) };
+  // Altura da linha de header
+  ws['!rows'] = [{ hpt: 24 }];
+
   XLSX.utils.book_append_sheet(wb, ws, "Fornecedores");
 
   // Sheet 2: instruções
-  var instr = [["COMO PREENCHER ESTA PLANILHA"],[""],
-    ["1. Preencha a coluna 'tipo_definitivo' com UMA das opções abaixo:"],[""]];
+  var qtdRevisar = data.filter(function(r){ return r["⚠ Revisar"]; }).length;
+  var qtdDup = data.filter(function(r){ return r["⚠ Revisar"].indexOf("duplicado") >= 0; }).length;
+  var qtdApto = data.filter(function(r){ return r["⚠ Revisar"].indexOf("apto/loft") >= 0; }).length;
+  var qtdSemTipo = data.filter(function(r){ return r["⚠ Revisar"].indexOf("Sem tipo") >= 0; }).length;
+
+  var instr = [
+    ["INSTRUÇÕES PARA ALINE"],[""],
+    ["Objetivo: revisar a lista de fornecedores da NORDAPP, marcar duplicados, excluir os que não"],
+    ["correspondem (apartamentos/lofts, por exemplo) e preencher dados que estão faltando."],[""],
+    ["ESTATÍSTICAS DESTA PLANILHA"],
+    ["  Total de fornecedores: " + data.length],
+    ["  Com observações a revisar: " + qtdRevisar],
+    ["  Possíveis duplicados detectados: " + qtdDup],
+    ["  Suspeitos de ser apto/loft: " + qtdApto],
+    ["  Sem tipo definido: " + qtdSemTipo],
+    [""],
+    ["A COLUNA '⚠ Revisar' TRAZ SUGESTÕES AUTOMÁTICAS:"],
+    ["  ⚠ Possível duplicado com #X  →  compare com o ID #X e decida qual manter"],
+    ["  ⚠ Parece ser um apto/loft    →  revisar, provavelmente excluir ou marcar inativo"],
+    ["  ⚠ Sem tipo definido          →  preencher a coluna 'Tipo' (ver lista abaixo)"],
+    ["  ℹ Sem comprobantes           →  pode excluir se realmente não usamos"],
+    ["  ℹ Sem dados de contato        →  preencher o que tiver disponível"],
+    [""],
+    ["COMO PREENCHER A COLUNA 'Tipo':"],
+    [""]
+  ];
   FORNECEDOR_TIPOS.forEach(function(t){
     instr.push(["   " + t.id + "  →  " + t.emoji + " " + t.label]);
   });
-  instr.push([""],
-    ["2. A coluna 'tipo_sugerido' tem uma sugestão automática baseada na categoria legacy."],
-    ["   Pode copiar o id (ex: 'empregado') para 'tipo_definitivo' se concordar."],[""],
-    ["3. Fornecedores duplicados (mesmo nome): mantenha apenas UMA linha."],
-    ["   Exclua as linhas extras ou marque ativo=NAO."],[""],
-    ["4. Pode preencher: email, telefone, cnpj_cpf, banco_pagto, chave_pix, comentarios."],[""],
-    ["5. Ativo: SIM para ativos, NAO para dados antigos que não usamos mais."],[""],
-    ["6. Após preencher, envie este arquivo para o Matias para importação."],[""],
-    ["Total atual: " + data.length + " fornecedores"]);
+  instr.push(
+    [""],
+    ["FLUXO DE REVISÃO:"],
+    ["  1. Ordenar por 'Nome' (já ordenado) e revisar duplicados lado a lado."],
+    ["  2. Para cada linha com ⚠ ou ℹ, resolver: completar, mesclar ou marcar Ativo=NAO."],
+    ["  3. Preencher Email/Telefone/Chave Pix/CPF/CNPJ onde for possível."],
+    ["  4. Revisar 'Comentários' e adicionar qualquer nota útil."],
+    ["  5. Enviar este arquivo preenchido para o Matias."],
+    [""],
+    ["Gerado em: " + new Date().toLocaleString('pt-BR')]
+  );
   var wsInstr = XLSX.utils.aoa_to_sheet(instr);
   wsInstr['!cols'] = [{wch: 90}];
   XLSX.utils.book_append_sheet(wb, wsInstr, "Instruções");
@@ -678,9 +788,19 @@ var GRUPO_LABEL = {
   nao_operacional: "Não operacional"
 };
 var MEIO_LABEL = {
-  banco_inter: "Banco Inter · LG",
-  banco_bradesco: "Bradesco",
-  banco_itau: "Itaú",
+  inter_pix:        "Inter LG · Pix",
+  bradesco_pix:     "Bradesco LG · Pix",
+  inter_cartao:     "Cartão Inter LG",
+  bradesco_cartao:  "Cartão Bradesco LG",
+  dinheiro_brl:     "Dinheiro R$",
+  dinheiro_usd:     "Dinheiro US$",
+  dinheiro_ars:     "Dinheiro AR$",
+  cripto:           "Cripto",
+  outro:            "Outro",
+  // legacy (compatibilidade com dados antigos)
+  banco_inter: "Inter LG · Pix",
+  banco_bradesco: "Bradesco LG · Pix",
+  banco_itau: "Outro (Itaú)",
   cartao_corp: "Cartão corp.",
   pix: "Pix",
   dinheiro: "Dinheiro",
@@ -1702,7 +1822,7 @@ function openRapidaModal(){
   document.getElementById("rfValor").value = "";
   document.getElementById("rfData").value = new Date().toISOString().slice(0,10);
   document.getElementById("rfCentroCusto").value = "geral";
-  document.getElementById("rfMeio").value = "dinheiro";
+  document.getElementById("rfMeio").value = "dinheiro_brl";
   document.getElementById("rfFornecedor").value = "";
   document.getElementById("rfCategoria").value = "";
 
@@ -2659,15 +2779,16 @@ async function renderCaixa(){
   function labelMeio(m){
     var lk = String(m).toLowerCase();
     if(MEIO_LABEL[lk]) return MEIO_LABEL[lk];
-    if(lk.indexOf("inter") >= 0) return "Banco Inter · LG";
-    if(lk.indexOf("bradesco") >= 0) return "Bradesco";
-    if(lk.indexOf("itau") >= 0 || lk.indexOf("itaú") >= 0) return "Itaú";
-    if(lk.indexOf("pix") >= 0) return "Pix";
-    if(lk.indexOf("cart") >= 0) return "Cartão";
-    if(lk.indexOf("dinheiro") >= 0 || lk.indexOf("cash") >= 0) return "Dinheiro";
-    if(lk.indexOf("cripto") >= 0 || lk.indexOf("fiwind") >= 0 || lk.indexOf("usdt") >= 0) return "Cripto · Matias";
-    if(lk.indexOf("transf_ar") >= 0 || lk.indexOf("macro") >= 0) return "Transfer AR · Matias";
-    if(lk.indexOf("transf") >= 0) return "Transferência";
+    if(lk.indexOf("inter") >= 0 && lk.indexOf("cart") >= 0) return "Cartão Inter LG";
+    if(lk.indexOf("bradesco") >= 0 && lk.indexOf("cart") >= 0) return "Cartão Bradesco LG";
+    if(lk.indexOf("inter") >= 0) return "Inter LG · Pix";
+    if(lk.indexOf("bradesco") >= 0) return "Bradesco LG · Pix";
+    if(lk.indexOf("itau") >= 0 || lk.indexOf("itaú") >= 0) return "Outro (Itaú)";
+    if(lk.indexOf("cripto") >= 0 || lk.indexOf("fiwind") >= 0 || lk.indexOf("usdt") >= 0) return "Cripto";
+    if(lk.indexOf("usd") >= 0) return "Dinheiro US$";
+    if(lk.indexOf("ars") >= 0 || lk.indexOf("transf_ar") >= 0 || lk.indexOf("macro") >= 0) return "Dinheiro AR$";
+    if(lk.indexOf("dinheiro") >= 0 || lk.indexOf("cash") >= 0) return "Dinheiro R$";
+    if(lk.indexOf("pix") >= 0) return "Outro (Pix sem banco)";
     return m || "Outro";
   }
 
@@ -3334,7 +3455,7 @@ async function sha256Short(txt){
 
 function openUploadModal(){
   if(!canEditComps()){ showToast("Sem permissão"); return; }
-  document.getElementById("upConta").value = "banco_inter";
+  document.getElementById("upConta").value = "inter_pix";
   document.getElementById("upArquivo").value = "";
   document.getElementById("upPreview").style.display = "none";
   document.getElementById("upPreview").innerHTML = "";
@@ -3729,7 +3850,7 @@ async function criarCompDeMov(){
   document.getElementById("rfDescricao").value = mov.descricao || "";
   document.getElementById("rfValor").value = Math.abs(mov.valor).toFixed(2);
   document.getElementById("rfData").value = mov.data;
-  document.getElementById("rfMeio").value = "banco_inter";
+  document.getElementById("rfMeio").value = "inter_pix";
   // Se tem top sugestão, hinta fornecedor e categoria
   if(sugTop){
     if(sugTop.fornecedor_id) document.getElementById("rfFornecedor").value = sugTop.fornecedor_id;
