@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.9.5 · Fix hash + Ignorar LG->LG + Apagar extratos · 2026-11-25");
+console.log("NORDAPP v0.10.0 · Simples Nacional + Comissoes · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.5 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.10.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -356,6 +356,8 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "egresos"){ goToEgresos(); return; }
   if(moduleId === "retiros_socios"){ goToRetiros(); return; }
   if(moduleId === "conciliacao"){ goToConciliacao(); return; }
+  if(moduleId === "simples_nacional"){ goToSimples(); return; }
+  if(moduleId === "comissoes"){ goToComissoes(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -3475,16 +3477,34 @@ function autoMatchSuggestion(mov){
   if(mov.valor >= 0) return [];
   var abs = Math.abs(mov.valor);
   var mDate = new Date(mov.data + "T00:00:00").getTime();
+  var movDesc = (mov.descricao || "").toLowerCase();
+  // Palabras clave do Pix (tira códigos tipo "Cp :18236120-")
+  var movKeywords = movDesc.replace(/cp\s*:\s*\d+-?/gi, "").replace(/[^a-záéíóúãõâêôçñ\s]/gi, " ").split(/\s+/).filter(function(w){ return w.length >= 3; });
+
   var cands = _allComps.filter(function(c){
     if(c.estado === 'anulado') return false;
     if(Math.abs(Number(c.valor_total) - abs) > 0.5) return false;
-    // Prefere matching por data_pagamento mas aceita competencia tb
     var cDateStr = c.data_pagamento || c.data_competencia;
     if(!cDateStr) return false;
     var cDate = new Date(cDateStr + "T00:00:00").getTime();
     if(Math.abs(cDate - mDate) > 3 * 86400000) return false;
     return true;
   });
+
+  // Calcular score: 3 pontos por palavra do Pix que aparece no fornecedor ou descrição do comp
+  cands.forEach(function(c){
+    var score = 0;
+    var compTxt = ((c.fornecedores && c.fornecedores.nome) || "").toLowerCase() + " " + (c.descricao || "").toLowerCase();
+    movKeywords.forEach(function(w){
+      if(compTxt.indexOf(w.toLowerCase()) >= 0) score += 3;
+    });
+    // + 1 ponto se data exata
+    var cDateStr = c.data_pagamento || c.data_competencia;
+    if(cDateStr && cDateStr.slice(0,10) === mov.data) score += 1;
+    c._matchScore = score;
+  });
+
+  cands.sort(function(a,b){ return b._matchScore - a._matchScore; });
   return cands.slice(0, 5);
 }
 
@@ -3565,39 +3585,100 @@ function renderConciliacao(){
 function openConcModal(mov){
   _currentMov = mov;
   var sign = mov.valor < 0 ? 'Saída' : 'Entrada';
+  var statusHtml = "";
+  if(mov.conciliado){
+    statusHtml = '<br><span style="color:#3a6a4a;font-weight:700">✓ Já conciliado</span>';
+  } else if(mov.ignorado){
+    statusHtml = '<br><span style="color:#888;font-weight:700">⊘ Ignorado</span>';
+  }
   document.getElementById("concMovInfo").innerHTML =
     '<strong>'+sign+' · '+fmtBRL(Math.abs(mov.valor))+'</strong><br>' +
     fmtDate(mov.data) + ' · ' + (mov.tipo || "") + '<br>' +
     '<span style="font-size:12px">'+escapeHtml(mov.descricao||"")+'</span>' +
-    (mov.conciliado ? '<br><span style="color:#3a6a4a;font-weight:600">✓ Já conciliado</span>' : '') +
-    (mov.ignorado ? '<br><span style="color:#888;font-weight:600">⊘ Ignorado</span>' : '');
+    statusHtml;
 
-  var sugs = autoMatchSuggestion(mov);
   var html = "";
-  if(sugs.length === 0){
-    html = '<div class="field-hint" style="padding:12px;text-align:center">Nenhum comprobante compatível. Podés <b>Criar comprobante</b> ou <b>Ignorar</b> este movimento (ex: transferência interna).</div>';
+  var btnIgn = document.getElementById("btnIgnorarMov");
+  var btnCrC = document.getElementById("btnCriarCompDeMov");
+
+  if(mov.conciliado && mov.comprobante_id){
+    // Mostrar com quem está conciliado + opção de desvincular
+    var compMatched = _allComps.find(function(c){ return String(c.id) === String(mov.comprobante_id); });
+    if(compMatched){
+      var forn = compMatched.fornecedores ? compMatched.fornecedores.nome : "—";
+      var cat = compMatched.categorias_dre ? compMatched.categorias_dre.nome : "—";
+      html = '<div class="field-hint" style="margin:8px 0 4px">Conciliado com este comprobante:</div>' +
+             '<div class="sug-item" style="background:var(--green-bg);cursor:default">' +
+               '<div class="sug-data">'+fmtDate(compMatched.data_pagamento||compMatched.data_competencia)+'</div>' +
+               '<div class="sug-desc">'+escapeHtml(compMatched.descricao||"")+'<span class="forne">'+escapeHtml(forn)+' · '+escapeHtml(cat)+'</span></div>' +
+               '<div class="sug-valor">'+fmtBRL(compMatched.valor_total)+'</div>' +
+               '<button class="btn-match" style="background:#8b3a3a" id="btnDesvincularMov">⊘ Desvincular</button>' +
+             '</div>';
+    } else {
+      html = '<div class="field-hint">Conciliado com comprobante #'+mov.comprobante_id+' (não encontrado no cache)</div>';
+    }
+    // Esconder "Ignorar" e "Criar"
+    if(btnIgn) btnIgn.style.display = "none";
+    if(btnCrC) btnCrC.style.display = "none";
+  } else if(mov.ignorado){
+    html = '<div class="field-hint" style="padding:12px;text-align:center">Movimento ignorado. Para reativar, clicá em <b>Desvincular</b>.</div>' +
+           '<div style="text-align:center;margin-top:10px"><button class="btn-match" style="background:#8b3a3a" id="btnDesvincularMov">⊘ Reativar (desvincular)</button></div>';
+    if(btnIgn) btnIgn.style.display = "none";
+    if(btnCrC) btnCrC.style.display = "none";
   } else {
-    html = '<div class="field-hint" style="margin:8px 0 4px">Sugestões (valor igual, data ±3d):</div><div class="sug-list">';
-    sugs.forEach(function(c){
-      var forn = c.fornecedores ? c.fornecedores.nome : "—";
-      html += '<div class="sug-item" data-cid="'+c.id+'">' +
-                '<div class="sug-data">'+fmtDate(c.data_pagamento||c.data_competencia)+'</div>' +
-                '<div class="sug-desc">'+escapeHtml(c.descricao||"")+'<span class="forne">'+escapeHtml(forn)+'</span></div>' +
-                '<div class="sug-valor">'+fmtBRL(c.valor_total)+'</div>' +
-                '<button class="btn-match" data-cid="'+c.id+'">Match ✓</button>' +
-              '</div>';
-    });
-    html += '</div>';
+    // Normal: mostrar sugestões + opções
+    if(btnIgn) btnIgn.style.display = "block";
+    if(btnCrC) btnCrC.style.display = "block";
+    var sugs = autoMatchSuggestion(mov);
+    if(sugs.length === 0){
+      html = '<div class="field-hint" style="padding:12px;text-align:center">Nenhum comprobante compatível. Podés <b>Criar comprobante</b> ou <b>Ignorar</b> este movimento (ex: transferência interna).</div>';
+    } else {
+      html = '<div class="field-hint" style="margin:8px 0 4px">Sugestões (valor igual, data ±3d) · ordenadas por score:</div><div class="sug-list">';
+      sugs.forEach(function(c){
+        var forn = c.fornecedores ? c.fornecedores.nome : "—";
+        var score = c._matchScore || 0;
+        var stars = score >= 6 ? '⭐⭐⭐' : (score >= 3 ? '⭐⭐' : '⭐');
+        var scoreTxt = score >= 6 ? 'forte' : (score >= 3 ? 'médio' : 'fraco');
+        html += '<div class="sug-item" data-cid="'+c.id+'" title="Match '+scoreTxt+' (score '+score+')">' +
+                  '<div class="sug-data">'+fmtDate(c.data_pagamento||c.data_competencia)+'<br><span style="font-size:11px">'+stars+'</span></div>' +
+                  '<div class="sug-desc">'+escapeHtml(c.descricao||"")+'<span class="forne">'+escapeHtml(forn)+'</span></div>' +
+                  '<div class="sug-valor">'+fmtBRL(c.valor_total)+'</div>' +
+                  '<button class="btn-match" data-cid="'+c.id+'">Match ✓</button>' +
+                '</div>';
+      });
+      html += '</div>';
+    }
   }
+
   document.getElementById("concSugestoes").innerHTML = html;
-  // Click no item ou no botão → confirma match
+  // Click no sug/botão → confirma match
   document.getElementById("concSugestoes").querySelectorAll("[data-cid]").forEach(function(b){
     b.addEventListener("click", function(e){
       e.stopPropagation();
       confirmarMatch(b.dataset.cid);
     });
   });
+  var btnDes = document.getElementById("btnDesvincularMov");
+  if(btnDes) btnDes.addEventListener("click", desvincularMov);
+
   document.getElementById("modalConc").classList.add("open");
+}
+
+async function desvincularMov(){
+  if(!_currentMov) return;
+  if(!confirm("Desvincular este movimento? Vai voltar a status pendente.")) return;
+  var r = await api("movimentos_bancarios?id=eq." + _currentMov.id, "PATCH", {
+    comprobante_id: null,
+    conciliado: false,
+    ignorado: false,
+    conciliado_at: null,
+    conciliado_por: null
+  });
+  if(r === null){ showToast("Erro"); return; }
+  showToast("Desvinculado ✓");
+  closeConcModal();
+  await loadMovimentos();
+  renderConciliacao();
 }
 
 function closeConcModal(){
@@ -3701,6 +3782,288 @@ async function goToConciliacao(){
   if(_allComps.length === 0) await loadComprobantes();
   await loadMovimentos();
   renderConciliacao();
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO SIMPLES NACIONAL (base DAS)
+// ═════════════════════════════════════════════════════════════════════
+// Faixas Anexo III (serviços gerais) · atualizar se mudar
+var SN_ANEXOS = {
+  'I':   [[180000,0.04,0],[360000,0.073,5940],[720000,0.095,13860],[1800000,0.107,22500],[3600000,0.143,87300],[4800000,0.19,378000]],
+  'II':  [[180000,0.045,0],[360000,0.078,5940],[720000,0.10,13860],[1800000,0.112,22500],[3600000,0.147,85500],[4800000,0.30,720000]],
+  'III': [[180000,0.06,0],[360000,0.112,9360],[720000,0.135,17640],[1800000,0.16,35640],[3600000,0.21,125640],[4800000,0.33,648000]],
+  'IV':  [[180000,0.045,0],[360000,0.09,8100],[720000,0.102,12420],[1800000,0.14,39780],[3600000,0.22,183780],[4800000,0.33,828000]],
+  'V':   [[180000,0.155,0],[360000,0.18,4500],[720000,0.195,9900],[1800000,0.205,17100],[3600000,0.23,62100],[4800000,0.305,540000]]
+};
+var _snAno = null;
+
+async function renderSimples(){
+  if(!_snAno) _snAno = new Date().getFullYear();
+  document.getElementById("snAnoAtual").textContent = _snAno;
+  var anexo = document.getElementById("snAnexo").value || 'III';
+  var faixas = SN_ANEXOS[anexo];
+
+  var el = document.getElementById("snBody");
+  el.innerHTML = '<div class="loading">Carregando...</div>';
+
+  // Precisa de reservas + comprobantes
+  if(_allComps.length === 0) await loadComprobantes();
+  var rsvRes = await loadReservasDRE();
+  if(!rsvRes.ok){ el.innerHTML = '<div class="dre-warning">⚠ Erro ao ler reservas</div>'; return; }
+
+  // Calcular receita mensal (12 meses do ano + meses anteriores para RBT12)
+  // Função receita de um mês específico (y, m)
+  function receitaMes(y, m){
+    var ini = new Date(y, m, 1).toISOString().slice(0,10);
+    var fim = new Date(y, m+1, 0).toISOString().slice(0,10);
+    var total = 0;
+    rsvRes.rows.forEach(function(r){
+      if(!r.checkin) return;
+      var ck = String(r.checkin).slice(0,10);
+      if(ck < ini || ck > fim) return;
+      var st = String(r.status || "").toLowerCase();
+      if(st.indexOf("cancel") >= 0) return;
+      total += reservaReceitaPrincipal(r) + reservaReceitaAdicional(r) - reservaDevolucao(r);
+    });
+    // + receitas em comprobantes grupo=receita
+    _allComps.forEach(function(c){
+      if(c.estado === 'anulado') return;
+      if(!c.categorias_dre || c.categorias_dre.grupo !== 'receita') return;
+      if(!c.data_competencia) return;
+      if(c.data_competencia < ini || c.data_competencia > fim) return;
+      total += Number(c.valor_total) || 0;
+    });
+    return total;
+  }
+
+  function dasPagoMes(y, m){
+    var ini = new Date(y, m, 1).toISOString().slice(0,10);
+    var fim = new Date(y, m+1, 0).toISOString().slice(0,10);
+    var t = 0;
+    _allComps.forEach(function(c){
+      if(c.estado === 'anulado') return;
+      if(!c.categorias_dre || c.categorias_dre.nome !== 'Simples Nacional · DAS') return;
+      if(!c.data_competencia) return;
+      if(c.data_competencia < ini || c.data_competencia > fim) return;
+      t += Number(c.valor_total) || 0;
+    });
+    return t;
+  }
+
+  function calcAliquota(rbt12){
+    if(rbt12 <= 0) return { nominal:0, pd:0, efetiva:0, faixa:0 };
+    for(var i = 0; i < faixas.length; i++){
+      var f = faixas[i]; // [limite, aliq_nominal, deducao]
+      if(rbt12 <= f[0]){
+        var efetiva = ((rbt12 * f[1]) - f[2]) / rbt12;
+        return { nominal:f[1], pd:f[2], efetiva:Math.max(0, efetiva), faixa:i+1 };
+      }
+    }
+    // Acima do limite: sai do Simples
+    return { nominal:0, pd:0, efetiva:0, faixa:-1 };
+  }
+
+  var rows = [];
+  var totalReceita = 0, totalDASDevido = 0, totalDASPago = 0;
+  for(var m = 0; m < 12; m++){
+    var rec = receitaMes(_snAno, m);
+    // RBT12 = soma dos últimos 12 meses (não inclui mês atual)
+    var rbt12 = 0;
+    for(var k = 1; k <= 12; k++){
+      var y2 = _snAno, m2 = m - k;
+      while(m2 < 0){ m2 += 12; y2--; }
+      rbt12 += receitaMes(y2, m2);
+    }
+    var aliq = calcAliquota(rbt12);
+    var dasDevido = rec * aliq.efetiva;
+    var dasPago = dasPagoMes(_snAno, m);
+    var diff = dasPago - dasDevido;
+    rows.push({ mes: m, rec: rec, rbt12: rbt12, nominal: aliq.nominal, efetiva: aliq.efetiva, faixa: aliq.faixa, dasDevido: dasDevido, dasPago: dasPago, diff: diff });
+    totalReceita += rec; totalDASDevido += dasDevido; totalDASPago += dasPago;
+  }
+
+  var MESES_LBL = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  var html = '<div class="ing-kpis">' +
+    '<div class="ing-kpi hero span2"><div class="ing-kpi-label">Receita bruta ano</div><div class="ing-kpi-value">'+fmtBRL(totalReceita)+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">DAS devido</div><div class="ing-kpi-value">'+fmtBRL(totalDASDevido)+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">DAS pago</div><div class="ing-kpi-value">'+fmtBRL(totalDASPago)+'</div><div class="ing-kpi-sub" style="color:'+((totalDASPago-totalDASDevido)>=0?'#8fbda0':'#e8b0b0')+'">dif. '+fmtBRL(totalDASPago-totalDASDevido)+'</div></div>' +
+  '</div>';
+
+  html += '<div class="ing-table"><div class="ing-table-title">Mês a mês · Anexo '+anexo+'</div>' +
+    '<div class="ing-table-row header" style="grid-template-columns:40px 1fr 1fr 60px 1fr 1fr 1fr">' +
+      '<div>Mês</div><div>Receita</div><div>RBT12</div><div>Fx</div><div>Devido</div><div>Pago</div><div>Dif</div>' +
+    '</div>';
+  rows.forEach(function(r){
+    var difCls = r.diff >= 0 ? '' : 'style="color:#e8b0b0"';
+    html += '<div class="ing-table-row" style="grid-template-columns:40px 1fr 1fr 60px 1fr 1fr 1fr">' +
+      '<div>'+MESES_LBL[r.mes]+'</div>' +
+      '<div>'+fmtMoney(r.rec)+'</div>' +
+      '<div>'+fmtMoney(r.rbt12)+'</div>' +
+      '<div>'+(r.faixa>0?r.faixa:'—')+' · '+(r.efetiva*100).toFixed(1)+'%</div>' +
+      '<div>'+fmtMoney(r.dasDevido)+'</div>' +
+      '<div>'+fmtMoney(r.dasPago)+'</div>' +
+      '<div '+difCls+'>'+fmtMoney(r.diff)+'</div>' +
+    '</div>';
+  });
+  html += '<div class="ing-table-row total" style="grid-template-columns:40px 1fr 1fr 60px 1fr 1fr 1fr">' +
+    '<div>—</div><div>'+fmtMoney(totalReceita)+'</div><div></div><div></div><div>'+fmtMoney(totalDASDevido)+'</div><div>'+fmtMoney(totalDASPago)+'</div><div>'+fmtMoney(totalDASPago-totalDASDevido)+'</div>' +
+  '</div></div>';
+
+  html += '<div class="dre-formula">Alíquota efetiva = (RBT12 × alíquota_nominal − dedução) / RBT12 · DAS devido = receita_mês × alíquota_efetiva · RBT12 = soma das receitas dos 12 meses anteriores.</div>';
+
+  el.innerHTML = html;
+  document.getElementById("snSubtitle").textContent = "Anexo " + anexo + " · " + _snAno;
+}
+
+function exportSimplesExcel(){
+  showToast("TODO: export SN (próxima versão)");
+}
+
+async function goToSimples(){
+  showView("viewSimples");
+  if(!_snAno) _snAno = new Date().getFullYear();
+  renderSimples();
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO COMISSÕES
+// ═════════════════════════════════════════════════════════════════════
+function getComPeriodo(){
+  return { ini: document.getElementById("comDataIni").value || null, fim: document.getElementById("comDataFim").value || null };
+}
+function aplicarComPeriodoPreset(preset){
+  var hoje = new Date();
+  var y = hoje.getFullYear(), m = hoje.getMonth();
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var ini = "", fim = "";
+  if(preset === "mes_atual"){ ini = iso(new Date(y,m,1)); fim = iso(new Date(y,m+1,0)); }
+  else if(preset === "mes_anterior"){ ini = iso(new Date(y,m-1,1)); fim = iso(new Date(y,m,0)); }
+  else if(preset === "ano_atual"){ ini = iso(new Date(y,0,1)); fim = iso(new Date(y,11,31)); }
+  document.getElementById("comDataIni").value = ini;
+  document.getElementById("comDataFim").value = fim;
+  document.querySelectorAll(".chip-btn[data-com-periodo]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.comPeriodo === preset);
+  });
+  renderComissoes();
+}
+
+async function renderComissoes(){
+  if(_allComps.length === 0) await loadComprobantes();
+  var per = getComPeriodo();
+  var list = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre) return false;
+    if(c.categorias_dre.nome !== 'Marketing e comissões canais') return false;
+    if(!c.data_competencia) return false;
+    if(per.ini && c.data_competencia < per.ini) return false;
+    if(per.fim && c.data_competencia > per.fim) return false;
+    return true;
+  });
+  var total = 0; list.forEach(function(c){ total += Number(c.valor_total)||0; });
+
+  // Receita do período (para % sobre receita)
+  var rsvRes = await loadReservasDRE();
+  var receita = 0;
+  if(rsvRes.ok){
+    rsvRes.rows.forEach(function(r){
+      if(!r.checkin) return;
+      var ck = String(r.checkin).slice(0,10);
+      if(per.ini && ck < per.ini) return;
+      if(per.fim && ck > per.fim) return;
+      var st = String(r.status || "").toLowerCase();
+      if(st.indexOf("cancel") >= 0) return;
+      receita += reservaReceitaPrincipal(r) + reservaReceitaAdicional(r) - reservaDevolucao(r);
+    });
+  }
+  var pctReceita = receita > 0 ? (total / receita) * 100 : 0;
+
+  // KPIs
+  document.getElementById("comKpis").innerHTML =
+    '<div class="ing-kpi hero span2"><div class="ing-kpi-label">Total comissões</div><div class="ing-kpi-value">'+fmtBRL(total)+'</div><div class="ing-kpi-sub">'+list.length+' comprobantes · '+pctReceita.toFixed(1)+'% da receita</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Receita</div><div class="ing-kpi-value">'+fmtBRL(receita)+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Take rate</div><div class="ing-kpi-value">'+pctReceita.toFixed(1)+'%</div></div>';
+
+  // Breakdown por fornecedor
+  var porForn = {};
+  list.forEach(function(c){
+    var nome = (c.fornecedores && c.fornecedores.nome) ? c.fornecedores.nome : "—";
+    if(!porForn[nome]) porForn[nome] = { valor:0, qtd:0 };
+    porForn[nome].valor += Number(c.valor_total)||0;
+    porForn[nome].qtd++;
+  });
+  var fornArr = Object.keys(porForn).map(function(k){ return { nome:k, valor:porForn[k].valor, qtd:porForn[k].qtd }; })
+    .sort(function(a,b){ return b.valor - a.valor; });
+
+  var fornHtml = '<div class="ing-table"><div class="ing-table-title">Por fornecedor/canal</div>' +
+    '<div class="ing-table-row header"><div>Fornecedor</div><div>N</div><div></div><div>R$</div><div>%</div></div>';
+  fornArr.forEach(function(k){
+    var pct = total > 0 ? (k.valor / total) * 100 : 0;
+    fornHtml += '<div class="ing-table-row">' +
+      '<div>'+escapeHtml(k.nome)+'</div><div>'+k.qtd+'</div><div></div><div>'+fmtMoney(k.valor)+'</div><div>'+pct.toFixed(0)+'%</div>' +
+    '</div>';
+  });
+  fornHtml += '<div class="ing-table-row total"><div>Total</div><div>'+list.length+'</div><div></div><div>'+fmtMoney(total)+'</div><div>100%</div></div></div>';
+
+  // Lista de comprobantes (click abre)
+  var itemsHtml = '<div class="ing-table"><div class="ing-table-title">Movimentos</div>' +
+    '<div class="ing-table-row header"><div>Data · Fornecedor</div><div></div><div></div><div>R$</div><div></div></div>';
+  list.sort(function(a,b){ return (b.data_competencia||"").localeCompare(a.data_competencia||""); });
+  list.slice(0, 50).forEach(function(c){
+    var forn = c.fornecedores ? c.fornecedores.nome : "—";
+    itemsHtml += '<div class="ing-table-row" data-com-id="'+c.id+'">' +
+      '<div>'+fmtDate(c.data_competencia)+' · '+escapeHtml(forn)+'</div><div></div><div></div><div>'+fmtMoney(c.valor_total)+'</div><div></div>' +
+    '</div>';
+  });
+  if(list.length > 50) itemsHtml += '<div class="field-hint" style="text-align:center;padding:8px">Mostrando 50 de '+list.length+'</div>';
+  itemsHtml += '</div>';
+
+  var el = document.getElementById("comBody");
+  el.innerHTML = list.length === 0 ? '<div class="empty"><div class="empty-icon">💰</div>Sem comissões no período.</div>' : (fornHtml + itemsHtml);
+  document.getElementById("comSubtitle").textContent = list.length + " comissões · " + fmtBRL(total);
+
+  el.querySelectorAll("[data-com-id]").forEach(function(r){
+    r.addEventListener("click", function(){ openCompModal(r.dataset.comId); });
+  });
+}
+
+function exportComissoesExcel(){
+  if(typeof XLSX === 'undefined'){ showToast("XLSX não carregou"); return; }
+  var per = getComPeriodo();
+  var list = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(!c.categorias_dre || c.categorias_dre.nome !== 'Marketing e comissões canais') return false;
+    if(!c.data_competencia) return false;
+    if(per.ini && c.data_competencia < per.ini) return false;
+    if(per.fim && c.data_competencia > per.fim) return false;
+    return true;
+  });
+  if(list.length === 0){ showToast("Sem dados"); return; }
+  var rows = list.map(function(c){
+    return {
+      "Data": c.data_competencia || "",
+      "Fornecedor": c.fornecedores ? c.fornecedores.nome : "",
+      "Descrição": c.descricao || "",
+      "Valor": Number(c.valor_total) || 0,
+      "Pago em": c.data_pagamento || ""
+    };
+  });
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:28},{wch:36},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, "Comissões");
+  var tag = (per.ini && per.fim) ? (per.ini + "_a_" + per.fim) : new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, "NORDAPP_Comissoes_" + tag + ".xlsx");
+  showToast("Excel baixado ✓");
+}
+
+async function goToComissoes(){
+  showView("viewComissoes");
+  if(!document.getElementById("comDataIni").value){
+    aplicarComPeriodoPreset("ano_atual");
+  } else {
+    renderComissoes();
+  }
 }
 
 function init(){
@@ -3841,6 +4204,30 @@ function init(){
   if(btnCloseDrill) btnCloseDrill.addEventListener("click", closeDrillModal);
   var md = document.getElementById("modalDrill");
   if(md) md.addEventListener("click", function(e){ if(e.target === md) closeDrillModal(); });
+
+  // ─── Simples Nacional ───
+  var btnSnPrev = document.getElementById("snAnoPrev");
+  if(btnSnPrev) btnSnPrev.addEventListener("click", function(){ _snAno--; renderSimples(); });
+  var btnSnNext = document.getElementById("snAnoNext");
+  if(btnSnNext) btnSnNext.addEventListener("click", function(){ _snAno++; renderSimples(); });
+  var snAnx = document.getElementById("snAnexo");
+  if(snAnx) snAnx.addEventListener("change", renderSimples);
+  var btnExpSN = document.getElementById("btnExportSN");
+  if(btnExpSN) btnExpSN.addEventListener("click", exportSimplesExcel);
+
+  // ─── Comissões ───
+  document.querySelectorAll(".chip-btn[data-com-periodo]").forEach(function(b){
+    b.addEventListener("click", function(){ aplicarComPeriodoPreset(b.dataset.comPeriodo); });
+  });
+  ["comDataIni","comDataFim"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", function(){
+      document.querySelectorAll(".chip-btn[data-com-periodo]").forEach(function(b){ b.classList.remove("active"); });
+      renderComissoes();
+    });
+  });
+  var btnExpCom = document.getElementById("btnExportCom");
+  if(btnExpCom) btnExpCom.addEventListener("click", exportComissoesExcel);
 
   // ─── Conciliação bancária ───
   var btnUp = document.getElementById("btnUploadExtrato");

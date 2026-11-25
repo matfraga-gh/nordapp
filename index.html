@@ -660,6 +660,79 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO SIMPLES NACIONAL ═════════════════════════════════════════ -->
+<div id="viewSimples" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubReportes">← Reportes</button>
+      <div class="module-title-block">
+        <div class="module-title">🧾 Simples Nacional</div>
+        <div class="module-subtitle" id="snSubtitle">Base DAS · Anexo III</div>
+      </div>
+    </div>
+
+    <div class="dre-mes-nav">
+      <button class="chip-btn" id="snAnoPrev">‹ Ano</button>
+      <div class="dre-mes-atual" id="snAnoAtual">2026</div>
+      <button class="chip-btn" id="snAnoNext">Ano ›</button>
+    </div>
+
+    <div class="module-actions">
+      <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;color:rgba(255,255,255,0.75);font-weight:500">
+          Anexo:
+          <select id="snAnexo" class="filter-select" style="width:auto;display:inline-block;padding:4px 8px;font-size:12px">
+            <option value="III" selected>III (serviços)</option>
+            <option value="I">I (comércio)</option>
+            <option value="II">II (indústria)</option>
+            <option value="IV">IV (serviços específicos)</option>
+            <option value="V">V (serviços específicos)</option>
+          </select>
+        </label>
+        <button class="btn-ghost" id="btnExportSN">⬇ Descargar Excel</button>
+      </div>
+    </div>
+
+    <div id="snBody"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
+<!-- ══ MÓDULO COMISSÕES ════════════════════════════════════════════════ -->
+<div id="viewComissoes" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubReportes">← Reportes</button>
+      <div class="module-title-block">
+        <div class="module-title">💰 Comissões</div>
+        <div class="module-subtitle" id="comSubtitle">Marketing e canais</div>
+      </div>
+    </div>
+
+    <div class="periodo-row">
+      <div class="periodo-presets">
+        <button class="chip-btn" data-com-periodo="mes_atual">Mês atual</button>
+        <button class="chip-btn" data-com-periodo="mes_anterior">Mês anterior</button>
+        <button class="chip-btn" data-com-periodo="ano_atual">Ano</button>
+        <button class="chip-btn" data-com-periodo="tudo">Tudo</button>
+      </div>
+      <div class="periodo-datas">
+        <input type="date" id="comDataIni" class="filter-input">
+        <span class="periodo-sep">até</span>
+        <input type="date" id="comDataFim" class="filter-input">
+      </div>
+    </div>
+
+    <div class="module-actions">
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn-ghost" id="btnExportCom">⬇ Descargar Excel</button>
+      </div>
+    </div>
+
+    <div id="comKpis" class="ing-kpis"></div>
+    <div id="comBody"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
 <!-- ══ MÓDULO RETIROS SÓCIOS ═══════════════════════════════════════════ -->
 <div id="viewRetiros" class="view">
   <div class="content">
@@ -958,6 +1031,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.9.5"></script>
+<script src="app.js?v=0.10.0"></script>
 </body>
 </html>
