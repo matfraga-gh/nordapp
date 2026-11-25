@@ -6,7 +6,9 @@
 <meta name="theme-color" content="#1a4a6b">
 <title>NORDAPP · Nordestina</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=0.7.1">
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
+<link rel="stylesheet" href="styles.css?v=0.9.0">
 </head>
 <body>
 
@@ -577,6 +579,83 @@
   </div>
 </div>
 
+<!-- ══ MÓDULO CONCILIAÇÃO BANCÁRIA ═════════════════════════════════════ -->
+<div id="viewConciliacao" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubDespesas">← Despesas</button>
+      <div class="module-title-block">
+        <div class="module-title">🔗 Conciliação</div>
+        <div class="module-subtitle" id="concSubtitle">Extratos bancários</div>
+      </div>
+    </div>
+
+    <div class="module-actions">
+      <button class="btn-primary" id="btnUploadExtrato">📎 Importar PDF extrato</button>
+      <div class="field-hint" style="text-align:center;margin-top:4px;color:rgba(255,255,255,0.6)">Banco Inter · Formato PDF oficial</div>
+    </div>
+
+    <div id="concFiltros" class="filter-row" style="display:none">
+      <select id="concStatusFilter" class="filter-select">
+        <option value="pendente">Pendentes (não conciliados)</option>
+        <option value="match">Com match sugerido</option>
+        <option value="conciliado">Conciliados</option>
+        <option value="ignorado">Ignorados</option>
+        <option value="todos">Todos</option>
+      </select>
+      <select id="concTipoFilter" class="filter-select">
+        <option value="">Todos tipos</option>
+        <option value="saida">Só saídas</option>
+        <option value="entrada">Só entradas</option>
+      </select>
+    </div>
+
+    <div id="concKpis" class="ing-kpis" style="display:none"></div>
+    <div id="concBody"><div class="empty"><div class="empty-icon">🔗</div>Clicar em "Importar PDF extrato" para começar.</div></div>
+  </div>
+</div>
+
+<!-- Modal Upload Extrato -->
+<div class="overlay" id="modalUpload">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Importar extrato bancário</span>
+      <button class="btn-x" id="btnCloseUpload">×</button>
+    </div>
+    <label>Conta <span class="req">*</span></label>
+    <select id="upConta">
+      <option value="banco_inter">Banco Inter · LG</option>
+      <option value="banco_bradesco">Bradesco</option>
+      <option value="banco_itau">Itaú</option>
+    </select>
+    <label>Arquivo PDF <span class="req">*</span></label>
+    <input type="file" id="upArquivo" accept=".pdf">
+    <div class="field-hint">O PDF é parseado no navegador · nada sai da sua máquina sem sua ação.</div>
+
+    <div id="upPreview" style="margin-top:14px;display:none"></div>
+
+    <div class="modal-footer">
+      <button class="btn-primary" id="btnProcessarUpload">Processar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Conciliação de 1 movimento -->
+<div class="overlay" id="modalConc">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <span class="modal-title">Conciliar movimento</span>
+      <button class="btn-x" id="btnCloseConc">×</button>
+    </div>
+    <div id="concMovInfo" class="pag-info"></div>
+    <div id="concSugestoes"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="btnIgnorarMov">⊘ Ignorar</button>
+      <button class="btn-secondary" id="btnCriarCompDeMov">+ Criar comprobante</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MÓDULO RETIROS SÓCIOS ═══════════════════════════════════════════ -->
 <div id="viewRetiros" class="view">
   <div class="content">
@@ -875,6 +954,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.8.2"></script>
+<script src="app.js?v=0.9.0"></script>
 </body>
 </html>

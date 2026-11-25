@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.8.2 · Fix limit 500 comprobantes · 2026-11-24");
+console.log("NORDAPP v0.9.0 · Conciliação bancária comprobantes · 2026-11-24");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.8.2 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.9.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -283,7 +283,8 @@ var HUB_CONFIG = {
     view: "viewHubDespesas",
     tiles: [
       { id:"comprobantes", icon:"🧾", title:"Comprobantes", sub:"Carregar e consultar" },
-      { id:"pagos", icon:"💳", title:"Pagos", sub:"Bandeja e conciliação" },
+      { id:"pagos", icon:"💳", title:"Pagos", sub:"Bandeja e estado de conta" },
+      { id:"conciliacao", icon:"🔗", title:"Conciliação", sub:"Extratos bancários" },
       { id:"fornecedores", icon:"🏢", title:"Fornecedores", sub:"CRUD e estado de conta" },
       { id:"pessoal", icon:"👤", title:"Pessoal", sub:"Empregados e salários" },
       { id:"socios", icon:"🤝", title:"Sócios", sub:"Retiros e nivelação", onlyRoles:["master","administracao","auditor"] }
@@ -354,6 +355,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "caixa"){ goToCaixa(); return; }
   if(moduleId === "egresos"){ goToEgresos(); return; }
   if(moduleId === "retiros_socios"){ goToRetiros(); return; }
+  if(moduleId === "conciliacao"){ goToConciliacao(); return; }
   // Fase 1: demais módulos mostram placeholder "em construção"
   document.getElementById("emConstrucaoTitle").textContent = title;
   document.getElementById("emConstrucaoBack").dataset.parent = parentHubId || "painel";
@@ -3196,6 +3198,397 @@ async function goToRetiros(){
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO CONCILIAÇÃO BANCÁRIA
+// ═════════════════════════════════════════════════════════════════════
+var _allMovs = [];
+var _parsedMovs = null;  // temporário durante upload
+var _parsedConta = null;
+var _parsedArquivo = null;
+var _currentMov = null;  // movimento sendo conciliado
+var MESES_PT = {'janeiro':1,'fevereiro':2,'março':3,'marco':3,'abril':4,'maio':5,'junho':6,'julho':7,'agosto':8,'setembro':9,'outubro':10,'novembro':11,'dezembro':12};
+
+async function parsePDFExtrato(file){
+  if(typeof pdfjsLib === 'undefined'){
+    showToast("PDF.js não carregou");
+    return null;
+  }
+  var buf = await file.arrayBuffer();
+  var pdf = await pdfjsLib.getDocument({data: buf}).promise;
+  var fullText = "";
+  for(var i = 1; i <= pdf.numPages; i++){
+    var page = await pdf.getPage(i);
+    var tc = await page.getTextContent();
+    // Juntar text items preservando linha quando há diferença grande em y
+    var lastY = null;
+    var currentLine = "";
+    tc.items.forEach(function(it){
+      if(lastY !== null && Math.abs(it.transform[5] - lastY) > 2){
+        fullText += currentLine + "\n";
+        currentLine = "";
+      }
+      currentLine += it.str + " ";
+      lastY = it.transform[5];
+    });
+    if(currentLine) fullText += currentLine + "\n";
+  }
+  return parsePDFExtratoText(fullText);
+}
+
+function parsePDFExtratoText(full){
+  var movs = [];
+  var curDate = null;
+  var dataIni = null, dataFim = null, saldoFinal = null;
+  var saldoMatch = full.match(/Saldo total\s*R\$\s*([\d\.,]+)/i);
+  if(saldoMatch) saldoFinal = parseBRMoney(saldoMatch[1]);
+  var periodoMatch = full.match(/Per[íi]odo:\s*(\d{2}\/\d{2}\/\d{4})\s*a\s*(\d{2}\/\d{2}\/\d{4})/i);
+  if(periodoMatch){
+    dataIni = brDateToISO(periodoMatch[1]);
+    dataFim = brDateToISO(periodoMatch[2]);
+  }
+
+  var lines = full.split("\n");
+  for(var i = 0; i < lines.length; i++){
+    var line = lines[i].trim();
+    if(!line) continue;
+    // Data: "3 de Junho de 2026" (pode vir colada)
+    var dm = line.match(/(\d{1,2})\s+de\s+(Janeiro|Fevereiro|Mar[çc]o|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+de\s+(\d{4})/i);
+    if(dm){
+      var mes = MESES_PT[dm[2].toLowerCase()];
+      if(mes){
+        curDate = dm[3] + "-" + String(mes).padStart(2,"0") + "-" + String(parseInt(dm[1])).padStart(2,"0");
+      }
+    }
+    // Transação: Tipo: "desc" -R$ X,XX R$ Saldo
+    var tm = line.match(/^(Pix enviado|Pix recebido|Pagamento efetuado|Boleto pago|TED enviado|TED recebido|D[ée]bito|Transfer[êe]ncia|Rendimento|Dep[óo]sito|Tarifa):\s*"(.+?)"\s*(-?R\$\s*[\d\.]+,\d{2})\s*(-?R\$\s*[\d\.]+,\d{2})/);
+    if(tm && curDate){
+      var tipo = tm[1], desc = tm[2].trim();
+      var valorTxt = tm[3], saldoTxt = tm[4];
+      var signal = valorTxt.indexOf('-') === 0 ? -1 : 1;
+      var valor = parseBRMoney(valorTxt.replace('-','')) * signal;
+      var saldo = parseBRMoney(saldoTxt.replace('-','')) * (saldoTxt.indexOf('-') === 0 ? -1 : 1);
+      movs.push({ data: curDate, tipo: tipo, descricao: desc, valor: valor, saldo_apos: saldo });
+    }
+  }
+
+  return { movimentos: movs, data_ini: dataIni, data_fim: dataFim, saldo_final: saldoFinal };
+}
+
+function parseBRMoney(s){
+  s = String(s).replace('R$','').replace(/\s/g,'').replace(/\./g,'').replace(',','.');
+  return parseFloat(s) || 0;
+}
+function brDateToISO(s){
+  var p = s.split('/');
+  return p[2] + '-' + p[1] + '-' + p[0];
+}
+
+async function sha256Short(txt){
+  var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt));
+  return Array.from(new Uint8Array(buf).slice(0,8)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+}
+
+function openUploadModal(){
+  if(!canEditComps()){ showToast("Sem permissão"); return; }
+  document.getElementById("upConta").value = "banco_inter";
+  document.getElementById("upArquivo").value = "";
+  document.getElementById("upPreview").style.display = "none";
+  document.getElementById("upPreview").innerHTML = "";
+  document.getElementById("btnProcessarUpload").textContent = "Processar";
+  _parsedMovs = null;
+  document.getElementById("modalUpload").classList.add("open");
+}
+function closeUploadModal(){
+  document.getElementById("modalUpload").classList.remove("open");
+}
+
+async function processarUpload(){
+  var file = document.getElementById("upArquivo").files[0];
+  var conta = document.getElementById("upConta").value;
+
+  // Se já foi processado, botão agora é "Importar X movimentos"
+  if(_parsedMovs){
+    await confirmarImportExtrato(conta);
+    return;
+  }
+
+  if(!file){ showToast("Selecione um arquivo PDF"); return; }
+  showToast("Parseando PDF...");
+  var result = await parsePDFExtrato(file);
+  if(!result || result.movimentos.length === 0){
+    showToast("Não achei movimentos no PDF");
+    return;
+  }
+  _parsedMovs = result.movimentos;
+  _parsedConta = conta;
+  _parsedArquivo = file.name;
+  _parsedExtra = result;
+
+  var saidas = result.movimentos.filter(function(m){ return m.valor < 0; }).length;
+  var entradas = result.movimentos.filter(function(m){ return m.valor > 0; }).length;
+  var totalSaidas = result.movimentos.filter(function(m){ return m.valor < 0; }).reduce(function(s,m){ return s+Math.abs(m.valor); }, 0);
+  var totalEntradas = result.movimentos.filter(function(m){ return m.valor > 0; }).reduce(function(s,m){ return s+m.valor; }, 0);
+
+  var html = '<div class="pag-info">' +
+    '<strong>'+result.movimentos.length+' movimentos</strong> parseados<br>' +
+    'Período: ' + (result.data_ini || "?") + ' a ' + (result.data_fim || "?") + '<br>' +
+    'Saídas: '+saidas+' · '+fmtBRL(totalSaidas)+'<br>' +
+    'Entradas: '+entradas+' · '+fmtBRL(totalEntradas) +
+    (result.saldo_final !== null ? '<br>Saldo final: <b>'+fmtBRL(result.saldo_final)+'</b>' : '') +
+  '</div>' +
+  '<div class="field-hint">Clicá "Importar" para salvar e iniciar conciliação.</div>';
+  var pv = document.getElementById("upPreview");
+  pv.innerHTML = html;
+  pv.style.display = "block";
+  document.getElementById("btnProcessarUpload").textContent = "Importar " + result.movimentos.length + " movimentos";
+}
+
+async function confirmarImportExtrato(conta){
+  if(!_parsedMovs) return;
+  // 1) Criar extrato_bancario
+  var ext = {
+    conta: conta,
+    data_ini: _parsedExtra.data_ini,
+    data_fim: _parsedExtra.data_fim,
+    arquivo_nome: _parsedArquivo,
+    total_mov: _parsedMovs.length,
+    saldo_final: _parsedExtra.saldo_final,
+    uploaded_by: currentUser.username || "system"
+  };
+  var r = await api("extratos_bancarios", "POST", ext);
+  if(!r){ showToast("Erro ao criar extrato"); return; }
+  var extratoRow = Array.isArray(r) ? r[0] : r;
+  var extratoId = extratoRow.id;
+
+  // 2) Inserir movimentos em lote, com hash de dedupe
+  showToast("Importando movimentos...");
+  var inserted = 0, skipped = 0;
+  // Fazer em chunks de 50 para não estourar URL
+  var chunk = [];
+  for(var i = 0; i < _parsedMovs.length; i++){
+    var m = _parsedMovs[i];
+    var hash = await sha256Short(conta + "|" + m.data + "|" + m.valor + "|" + m.descricao);
+    chunk.push({
+      extrato_id: extratoId,
+      conta: conta,
+      data: m.data,
+      tipo: m.tipo,
+      descricao: m.descricao,
+      valor: m.valor,
+      saldo_apos: m.saldo_apos,
+      hash_dedupe: hash
+    });
+    if(chunk.length === 50 || i === _parsedMovs.length - 1){
+      // Upsert via Prefer: resolution=ignore-duplicates? PostgREST suporta.
+      // Use POST com header Prefer para ignorar dup
+      try {
+        var resp = await fetch(SB_URL + "/rest/v1/movimentos_bancarios", {
+          method: "POST",
+          headers: Object.assign({}, H, { "Prefer": "resolution=merge-duplicates,return=representation" }),
+          body: JSON.stringify(chunk)
+        });
+        if(resp.ok){
+          var data = await resp.json();
+          inserted += data.length;
+        } else {
+          console.error("Falha no chunk", await resp.text());
+        }
+      } catch(e){ console.error(e); }
+      chunk = [];
+    }
+  }
+
+  showToast(inserted + " movimentos importados ✓");
+  _parsedMovs = null;
+  closeUploadModal();
+  await loadMovimentos();
+  renderConciliacao();
+}
+
+async function loadMovimentos(){
+  var data = await api("movimentos_bancarios?select=*&order=data.desc&limit=10000");
+  _allMovs = data || [];
+  return _allMovs;
+}
+
+function autoMatchSuggestion(mov){
+  // Para saídas: busca comprobante pago ±3 dias com valor igual
+  if(mov.valor >= 0) return [];
+  var abs = Math.abs(mov.valor);
+  var mDate = new Date(mov.data + "T00:00:00").getTime();
+  var cands = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    if(Math.abs(Number(c.valor_total) - abs) > 0.5) return false;
+    // Prefere matching por data_pagamento mas aceita competencia tb
+    var cDateStr = c.data_pagamento || c.data_competencia;
+    if(!cDateStr) return false;
+    var cDate = new Date(cDateStr + "T00:00:00").getTime();
+    if(Math.abs(cDate - mDate) > 3 * 86400000) return false;
+    return true;
+  });
+  return cands.slice(0, 5);
+}
+
+function renderConciliacao(){
+  var el = document.getElementById("concBody");
+  var kpisEl = document.getElementById("concKpis");
+  var filtEl = document.getElementById("concFiltros");
+
+  if(_allMovs.length === 0){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🔗</div>Nenhum extrato importado ainda.</div>';
+    kpisEl.style.display = "none";
+    filtEl.style.display = "none";
+    return;
+  }
+
+  // Filtros
+  var status = document.getElementById("concStatusFilter").value;
+  var tipo   = document.getElementById("concTipoFilter").value;
+  var list = _allMovs.slice();
+  // Calcular status derivado por mov
+  list.forEach(function(m){
+    m._status = m.conciliado ? 'conciliado' : (m.ignorado ? 'ignorado' : (m.valor < 0 && autoMatchSuggestion(m).length > 0 ? 'match' : 'pendente'));
+  });
+  if(status && status !== 'todos') list = list.filter(function(m){ return m._status === status; });
+  if(tipo === 'saida') list = list.filter(function(m){ return m.valor < 0; });
+  else if(tipo === 'entrada') list = list.filter(function(m){ return m.valor > 0; });
+
+  // KPIs
+  var pend = _allMovs.filter(function(m){ return m._status === 'pendente'; }).length;
+  var sugg = _allMovs.filter(function(m){ return m._status === 'match'; }).length;
+  var conc = _allMovs.filter(function(m){ return m._status === 'conciliado'; }).length;
+  var ign  = _allMovs.filter(function(m){ return m._status === 'ignorado'; }).length;
+  kpisEl.innerHTML =
+    '<div class="ing-kpi"><div class="ing-kpi-label">Pendentes</div><div class="ing-kpi-value">'+pend+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Com match</div><div class="ing-kpi-value">'+sugg+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Conciliados</div><div class="ing-kpi-value">'+conc+'</div></div>' +
+    '<div class="ing-kpi"><div class="ing-kpi-label">Ignorados</div><div class="ing-kpi-value">'+ign+'</div></div>';
+  kpisEl.style.display = "grid";
+  filtEl.style.display = "flex";
+
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty">Sem movimentos neste filtro.</div>';
+    return;
+  }
+
+  var html = '<div class="mov-list">' + list.slice(0, 200).map(function(m){
+    var cls = 'status-' + m._status;
+    var sign = m.valor < 0 ? 'neg' : 'pos';
+    var d = m.data.slice(8,10) + '/' + m.data.slice(5,7);
+    var badge = m._status === 'conciliado' ? '<span class="mov-badge conciliado">OK</span>' :
+                m._status === 'match' ? '<span class="mov-badge match">sug</span>' :
+                m._status === 'ignorado' ? '<span class="mov-badge ignorado">ign</span>' :
+                '<span class="mov-badge pendente">—</span>';
+    return '<div class="mov-item '+cls+'" data-id="'+m.id+'">' +
+             '<div class="mov-data">'+d+'</div>' +
+             '<div class="mov-desc">'+escapeHtml(m.descricao||"")+'<span class="tipo">'+(m.tipo||"")+'</span></div>' +
+             '<div class="mov-valor '+sign+'">'+(m.valor<0?'−':'+')+fmtBRL(Math.abs(m.valor)).replace('R$ ','')+'</div>' +
+             badge +
+           '</div>';
+  }).join("") + '</div>';
+  if(list.length > 200) html += '<div class="field-hint" style="text-align:center;margin-top:8px">Mostrando 200 de '+list.length+'. Filtrá para ver outros.</div>';
+
+  el.innerHTML = html;
+  document.getElementById("concSubtitle").textContent = _allMovs.length + " movimentos · " + conc + " conciliados (" + Math.round(100*conc/_allMovs.length) + "%)";
+
+  el.querySelectorAll(".mov-item").forEach(function(it){
+    it.addEventListener("click", function(){
+      var id = it.dataset.id;
+      var mov = _allMovs.find(function(m){ return String(m.id) === String(id); });
+      if(mov) openConcModal(mov);
+    });
+  });
+}
+
+function openConcModal(mov){
+  _currentMov = mov;
+  var sign = mov.valor < 0 ? 'Saída' : 'Entrada';
+  document.getElementById("concMovInfo").innerHTML =
+    '<strong>'+sign+' · '+fmtBRL(Math.abs(mov.valor))+'</strong><br>' +
+    fmtDate(mov.data) + ' · ' + (mov.tipo || "") + '<br>' +
+    '<span style="font-size:12px">'+escapeHtml(mov.descricao||"")+'</span>' +
+    (mov.conciliado ? '<br><span style="color:#3a6a4a;font-weight:600">✓ Já conciliado</span>' : '') +
+    (mov.ignorado ? '<br><span style="color:#888;font-weight:600">⊘ Ignorado</span>' : '');
+
+  var sugs = autoMatchSuggestion(mov);
+  var html = "";
+  if(sugs.length === 0){
+    html = '<div class="field-hint" style="padding:12px;text-align:center">Nenhum comprobante compatível. Podés <b>Criar comprobante</b> ou <b>Ignorar</b> este movimento (ex: transferência interna).</div>';
+  } else {
+    html = '<div class="field-hint" style="margin:8px 0 4px">Sugestões (valor igual, data ±3d):</div><div class="sug-list">';
+    sugs.forEach(function(c){
+      var forn = c.fornecedores ? c.fornecedores.nome : "—";
+      html += '<div class="sug-item">' +
+                '<div class="sug-data">'+fmtDate(c.data_pagamento||c.data_competencia)+'</div>' +
+                '<div class="sug-desc">'+escapeHtml(c.descricao||"")+'<span class="forne">'+escapeHtml(forn)+'</span></div>' +
+                '<div class="sug-valor">'+fmtBRL(c.valor_total)+'</div>' +
+                '<button class="btn-match" data-cid="'+c.id+'">Match ✓</button>' +
+              '</div>';
+    });
+    html += '</div>';
+  }
+  document.getElementById("concSugestoes").innerHTML = html;
+  document.getElementById("concSugestoes").querySelectorAll("[data-cid]").forEach(function(b){
+    b.addEventListener("click", function(){ confirmarMatch(b.dataset.cid); });
+  });
+  document.getElementById("modalConc").classList.add("open");
+}
+
+function closeConcModal(){
+  document.getElementById("modalConc").classList.remove("open");
+  _currentMov = null;
+}
+
+async function confirmarMatch(compId){
+  if(!_currentMov) return;
+  var r = await api("movimentos_bancarios?id=eq." + _currentMov.id, "PATCH", {
+    comprobante_id: Number(compId),
+    conciliado: true,
+    conciliado_at: new Date().toISOString(),
+    conciliado_por: currentUser.username || "system"
+  });
+  if(!r){ showToast("Erro"); return; }
+  showToast("Conciliado ✓");
+  closeConcModal();
+  await loadMovimentos();
+  renderConciliacao();
+}
+
+async function ignorarMov(){
+  if(!_currentMov) return;
+  var r = await api("movimentos_bancarios?id=eq." + _currentMov.id, "PATCH", {
+    ignorado: true,
+    conciliado_at: new Date().toISOString(),
+    conciliado_por: currentUser.username || "system"
+  });
+  if(!r){ showToast("Erro"); return; }
+  showToast("Ignorado");
+  closeConcModal();
+  await loadMovimentos();
+  renderConciliacao();
+}
+
+async function criarCompDeMov(){
+  if(!_currentMov) return;
+  if(_currentMov.valor >= 0){ showToast("Só saídas podem virar comprobantes"); return; }
+  closeConcModal();
+  // Abre Despesa Rápida com valores pré-preenchidos
+  openRapidaModal();
+  document.getElementById("rfDescricao").value = _currentMov.descricao || "";
+  document.getElementById("rfValor").value = Math.abs(_currentMov.valor).toFixed(2);
+  document.getElementById("rfData").value = _currentMov.data;
+  document.getElementById("rfMeio").value = "banco_inter";
+  // Nota: o usuário precisa escolher fornecedor e categoria manualmente
+  showToast("Preenchido · escolhe fornecedor e categoria");
+}
+
+async function goToConciliacao(){
+  showView("viewConciliacao");
+  if(_allComps.length === 0) await loadComprobantes();
+  await loadMovimentos();
+  renderConciliacao();
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -3334,6 +3727,28 @@ function init(){
   if(btnCloseDrill) btnCloseDrill.addEventListener("click", closeDrillModal);
   var md = document.getElementById("modalDrill");
   if(md) md.addEventListener("click", function(e){ if(e.target === md) closeDrillModal(); });
+
+  // ─── Conciliação bancária ───
+  var btnUp = document.getElementById("btnUploadExtrato");
+  if(btnUp) btnUp.addEventListener("click", openUploadModal);
+  var btnCloseUp = document.getElementById("btnCloseUpload");
+  if(btnCloseUp) btnCloseUp.addEventListener("click", closeUploadModal);
+  var btnProc = document.getElementById("btnProcessarUpload");
+  if(btnProc) btnProc.addEventListener("click", processarUpload);
+  var btnCloseC = document.getElementById("btnCloseConc");
+  if(btnCloseC) btnCloseC.addEventListener("click", closeConcModal);
+  var btnIgn = document.getElementById("btnIgnorarMov");
+  if(btnIgn) btnIgn.addEventListener("click", ignorarMov);
+  var btnCrC = document.getElementById("btnCriarCompDeMov");
+  if(btnCrC) btnCrC.addEventListener("click", criarCompDeMov);
+  var mup = document.getElementById("modalUpload");
+  if(mup) mup.addEventListener("click", function(e){ if(e.target === mup) closeUploadModal(); });
+  var mco = document.getElementById("modalConc");
+  if(mco) mco.addEventListener("click", function(e){ if(e.target === mco) closeConcModal(); });
+  ["concStatusFilter","concTipoFilter"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("change", renderConciliacao);
+  });
 
   // ─── Retiros Sócios ───
   document.querySelectorAll(".chip-btn[data-ret-periodo]").forEach(function(b){

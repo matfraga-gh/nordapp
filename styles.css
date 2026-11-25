@@ -1439,3 +1439,82 @@ a { color: var(--ocean); text-decoration: none; }
   font-weight: 600;
 }
 .caixa-saldo-detail span { opacity: 0.85; }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.9.0 · Conciliação bancária
+   ═════════════════════════════════════════════════════════════════════ */
+
+.mov-list { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.mov-item {
+  background: var(--sand);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border-left: 4px solid var(--sand-dark);
+  transition: transform .1s;
+}
+.mov-item:hover { transform: translateY(-1px); }
+.mov-item.status-conciliado { border-left-color: var(--green); opacity: 0.75; }
+.mov-item.status-match { border-left-color: var(--yellow); }
+.mov-item.status-ignorado { border-left-color: #888; opacity: 0.5; }
+.mov-item.status-pendente { border-left-color: var(--red); }
+.mov-data {
+  font-size: 11px; color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.mov-desc {
+  font-size: 12px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
+}
+.mov-desc .tipo { font-size: 10px; opacity: 0.6; display: block; }
+.mov-valor {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  text-align: right;
+  white-space: nowrap;
+}
+.mov-valor.neg { color: #8b3a3a; }
+.mov-valor.pos { color: #3a6a4a; }
+.mov-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.mov-badge.pendente { background: var(--red-bg); color: #7a3a3a; }
+.mov-badge.match { background: var(--yellow-bg); color: #8a6a1f; }
+.mov-badge.conciliado { background: var(--green-bg); color: #3a5f44; }
+.mov-badge.ignorado { background: #ddd; color: #666; }
+
+/* Sugestões no modal conciliação */
+.sug-list { max-height: 50vh; overflow-y: auto; margin: 10px 0; }
+.sug-item {
+  display: grid;
+  grid-template-columns: 70px 1fr 90px auto;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sand-mid);
+  align-items: center;
+  cursor: pointer;
+}
+.sug-item:hover { background: var(--sand-mid); }
+.sug-item .btn-match {
+  background: var(--ocean); color: var(--white);
+  border: none; padding: 4px 10px;
+  border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600;
+}
+.sug-data { font-size: 11px; color: var(--text-soft); }
+.sug-desc { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sug-desc .forne { font-size: 10px; opacity: 0.7; display: block; }
+.sug-valor { font-weight: 700; color: var(--ocean); text-align: right; font-variant-numeric: tabular-nums; }
