@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.13.6 · Parser Bradesco · 2026-11-25");
+console.log("NORDAPP v0.14.0 · Confirmar matches em lote + pagamentos retroativos · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.13.6 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.14.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -4052,6 +4052,87 @@ async function criarCompDeMov(){
   }
 }
 
+// Mapear conta de extrato → meio_pagamento
+function contaToMeio(conta){
+  var c = String(conta || "").toLowerCase();
+  if(c.indexOf("bradesco") >= 0) return "bradesco_pix";
+  if(c.indexOf("inter") >= 0) return "inter_pix";
+  if(c.indexOf("cielo") >= 0) return "outro";
+  if(c.indexOf("kamipay") >= 0) return "cripto";
+  return "outro";
+}
+
+async function confirmarMatchesEmLote(){
+  if(!canEditComps()){ showToast("Sem permissão"); return; }
+  // Para cada mov pendente de saída com match forte único, auto-concilia
+  var candidatos = [];
+  _allMovs.forEach(function(m){
+    if(m.conciliado || m.ignorado) return;
+    if(m.valor >= 0) return;
+    var sugs = autoMatchSuggestion(m);
+    if(sugs.length === 0) return;
+    // Pega o top (maior score) e só aceita se score >= 3 (match médio ou forte)
+    var top = sugs[0];
+    if((top._matchScore || 0) < 3) return;
+    candidatos.push({ mov: m, comp: top });
+  });
+
+  if(candidatos.length === 0){ showToast("Nenhum match forte/médio pendente"); return; }
+  if(!confirm("Confirmar " + candidatos.length + " matches sugeridos em lote? Isso vai:\n• Vincular cada movimento ao comprobante sugerido\n• Marcar comprobante como pago (se ainda não estiver)\n• Setear meio_pagamento = banco do extrato\n• Criar registro em pagamentos")) return;
+
+  showToast("Processando " + candidatos.length + " matches...");
+  var ok = 0, erro = 0;
+  var user = currentUser.username || "system";
+  var now = new Date().toISOString();
+
+  for(var i = 0; i < candidatos.length; i++){
+    var cand = candidatos[i];
+    var mov = cand.mov;
+    var comp = cand.comp;
+    var meio = contaToMeio(mov.conta);
+    try {
+      // 1. Marcar mov como conciliado
+      await api("movimentos_bancarios?id=eq." + mov.id, "PATCH", {
+        comprobante_id: comp.id,
+        conciliado: true,
+        conciliado_at: now,
+        conciliado_por: user
+      });
+      // 2. Atualizar comprobante (estado, meio, data_pagamento se não tinha)
+      var patch = { meio_pagamento: meio, updated_at: now };
+      if(comp.estado !== 'pago'){
+        patch.estado = 'pago';
+        patch.valor_pago = comp.valor_total;
+        patch.data_pagamento = mov.data;
+      } else if(!comp.data_pagamento){
+        patch.data_pagamento = mov.data;
+      }
+      await api("comprobantes?id=eq." + comp.id, "PATCH", patch);
+      // 3. Criar pagamento se não existe para esse comprobante+data
+      var existingPag = await api("pagamentos?comprobante_id=eq." + comp.id + "&data_pagamento=eq." + mov.data);
+      if(!existingPag || existingPag.length === 0){
+        await api("pagamentos", "POST", {
+          comprobante_id: comp.id,
+          valor: Math.abs(Number(mov.valor)) || Number(comp.valor_total),
+          data_pagamento: mov.data,
+          meio_pagamento: meio,
+          observacoes: '[auto-conciliado · extrato ' + mov.conta + ']',
+          created_by: user
+        });
+      }
+      ok++;
+    } catch(e){
+      console.error("Erro conciliando mov", mov.id, e);
+      erro++;
+    }
+  }
+
+  showToast(ok + " conciliados · " + erro + " erros");
+  await loadMovimentos();
+  await loadComprobantes();
+  renderConciliacao();
+}
+
 async function ignorarTransferenciasInternas(){
   if(!confirm("Marcar como IGNORADAS todas as entradas Pix recebido de 'LG LOCACOES'? (recargas internas, não são receitas)")) return;
   var candidatos = _allMovs.filter(function(m){
@@ -4853,6 +4934,8 @@ function init(){
   });
   var btnIgnInt = document.getElementById("btnIgnorarInternas");
   if(btnIgnInt) btnIgnInt.addEventListener("click", ignorarTransferenciasInternas);
+  var btnConfLote = document.getElementById("btnConfirmarMatchesLote");
+  if(btnConfLote) btnConfLote.addEventListener("click", confirmarMatchesEmLote);
   var btnApag = document.getElementById("btnApagarExtratos");
   if(btnApag) btnApag.addEventListener("click", apagarExtratos);
 
