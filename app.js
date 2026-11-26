@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.14.0 · Confirmar matches em lote + pagamentos retroativos · 2026-11-25");
+console.log("NORDAPP v0.14.2 · DRE só pagos + Estado conta fornecedor · 2026-11-25");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.14.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.14.2 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -1054,10 +1054,15 @@ function populateFornecedorSelect(){
   document.getElementById("cfFornecedor").innerHTML = '<option value="">Selecionar fornecedor...</option>' + opts;
 }
 
-function openCompModal(id){
+async function openCompModal(id){
   _editingCompId = id || null;
   var comp = null;
   if(id){ comp = _allComps.find(function(c){ return String(c.id) === String(id); }); }
+  // Garantir que fornecedores + categorias estejam carregados e populados
+  if(_allFornecedores.length === 0) await loadFornecedores();
+  if(_allCategorias.length === 0) await loadCategorias();
+  populateFornecedorSelect();
+  populateCategoriaSelects();
 
   document.getElementById("compModalTitle").textContent = comp ? "Editar comprobante" : "Novo comprobante";
   document.getElementById("cfDescricao").value = comp ? (comp.descricao || "") : "";
@@ -1611,13 +1616,27 @@ async function copiarPedidoWhatsApp(){
   }
 }
 
+// Retiros de utilidades/sócios não são despesas — excluir de Pagos
+function isRetiroComp(c){
+  if(!c.categorias_dre) return false;
+  var n = (c.categorias_dre.nome || "").toLowerCase();
+  return n.indexOf("retiro") >= 0 || n.indexOf("retiros sócios") >= 0;
+}
+function isRetiroPag(p){
+  // pag → via embedded comprobantes
+  if(!p.comprobantes || !p.comprobantes.categorias_dre) return false;
+  var n = (p.comprobantes.categorias_dre.nome || "").toLowerCase();
+  return n.indexOf("retiro") >= 0;
+}
+
 function renderBandeja(){
   var centro = document.getElementById("bandejaCentroFilter").value;
   var forn = document.getElementById("bandejaFornFilter").value;
 
-  // Pendentes e parciais apenas · SEM filtro de período (pendente é pendente até ser pago)
+  // Pendentes e parciais apenas · SEM filtro de período · SEM retiros de sócios
   var list = _allComps.filter(function(c){
     if(c.estado !== 'pendente' && c.estado !== 'pago_parcial') return false;
+    if(isRetiroComp(c)) return false;
     if(centro && c.centro_custo !== centro) return false;
     if(forn && String(c.fornecedor_id) !== forn) return false;
     return true;
@@ -1702,7 +1721,8 @@ function renderBandeja(){
 
 // ── Realizados ──
 async function loadPagamentos(){
-  var q = "pagamentos?select=*,comprobantes(descricao,fornecedor_id,fornecedores(nome))&order=data_pagamento.desc&limit=1000";
+  // Inclui categoria do comprobante para poder filtrar retiros
+  var q = "pagamentos?select=*,comprobantes(descricao,fornecedor_id,fornecedores(nome),categorias_dre(nome,grupo))&order=data_pagamento.desc&limit=10000";
   var data = await api(q);
   _allPagamentos = data || [];
   return _allPagamentos;
@@ -1713,6 +1733,7 @@ function pagamentosFiltrados(){
   var meio = document.getElementById("realMeioFilter").value;
   var forn = document.getElementById("realFornFilter").value;
   return _allPagamentos.filter(function(p){
+    if(isRetiroPag(p)) return false; // retiros NÃO são pagos
     if(per.ini && (p.data_pagamento || "") < per.ini) return false;
     if(per.fim && (p.data_pagamento || "") > per.fim) return false;
     if(meio && p.meio_pagamento !== meio) return false;
@@ -1773,31 +1794,117 @@ function renderRealizados(){
 }
 
 function renderEstadoConta(){
-  var list = pagamentosFiltrados();
-  if(list.length === 0){
-    document.getElementById("contaList").innerHTML = '<div class="empty"><div class="empty-icon">🏦</div>Sem movimentos no período.</div>';
+  var fornId = document.getElementById("contaFornFilter").value;
+  var el = document.getElementById("contaBody");
+
+  // Popular selector com fornecedores (una sola vez · idempotente)
+  var sel = document.getElementById("contaFornFilter");
+  if(sel.options.length <= 1){
+    var opts = _allFornecedores.slice().sort(function(a,b){ return (a.nome||"").localeCompare(b.nome||""); })
+      .map(function(f){ return '<option value="'+f.id+'">'+escapeHtml(f.nome)+'</option>'; }).join("");
+    sel.innerHTML = '<option value="">— Selecione um fornecedor —</option>' + opts;
+  }
+
+  if(!fornId){
+    // Vista de resumen: fornecedores com saldo pendente
+    var fornDebts = {};
+    _allComps.forEach(function(c){
+      if(c.estado === 'anulado') return;
+      if(isRetiroComp(c)) return;
+      if(c.estado !== 'pendente' && c.estado !== 'pago_parcial') return;
+      var fId = c.fornecedor_id;
+      if(!fId) return;
+      var saldo = Number(c.valor_total) - Number(c.valor_pago || 0);
+      if(!fornDebts[fId]) fornDebts[fId] = { nome: c.fornecedores ? c.fornecedores.nome : '—', total: 0, qtd: 0 };
+      fornDebts[fId].total += saldo;
+      fornDebts[fId].qtd++;
+    });
+    var arr = Object.keys(fornDebts).map(function(k){ return { id:k, nome:fornDebts[k].nome, total:fornDebts[k].total, qtd:fornDebts[k].qtd }; })
+      .sort(function(a,b){ return b.total - a.total; });
+
+    if(arr.length === 0){
+      el.innerHTML = '<div class="empty"><div class="empty-icon">✓</div>Nenhum fornecedor com saldo pendente.</div>';
+      return;
+    }
+
+    var html = '<div class="field-hint" style="text-align:center;margin-bottom:10px;color:rgba(255,255,255,0.7)">Fornecedores com saldo pendente · <b>'+arr.length+'</b></div>';
+    html += '<div class="conta-list">';
+    arr.forEach(function(f){
+      html += '<div class="conta-card" data-forn="'+f.id+'" style="cursor:pointer">' +
+                '<div>' +
+                  '<div class="conta-card-meio">'+escapeHtml(f.nome)+'</div>' +
+                  '<div class="conta-card-count">'+f.qtd+' comprobante'+(f.qtd!==1?'s':'')+' pendente'+(f.qtd!==1?'s':'')+'</div>' +
+                '</div>' +
+                '<div class="conta-card-valor" style="color:#b47a0e">'+fmtBRL(f.total)+'</div>' +
+              '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+    // Click num fornecedor da lista → seleciona no dropdown
+    el.querySelectorAll('[data-forn]').forEach(function(card){
+      card.addEventListener('click', function(){
+        sel.value = card.dataset.forn;
+        renderEstadoConta();
+      });
+    });
     return;
   }
-  var map = {};
-  list.forEach(function(p){
-    var m = p.meio_pagamento || "outro";
-    if(!map[m]) map[m] = { total: 0, count: 0 };
-    map[m].total += Number(p.valor) || 0;
-    map[m].count++;
-  });
-  var rows = Object.keys(map).map(function(k){
-    return { meio: k, label: MEIO_LABEL[k] || k, total: map[k].total, count: map[k].count };
-  }).sort(function(a,b){ return b.total - a.total; });
 
-  document.getElementById("contaList").innerHTML = rows.map(function(r){
-    return '<div class="conta-card">' +
-             '<div>' +
-               '<div class="conta-card-meio">'+r.label+'</div>' +
-               '<div class="conta-card-count">'+r.count+' movimento'+(r.count !== 1 ? "s" : "")+'</div>' +
-             '</div>' +
-             '<div class="conta-card-valor">'+fmtBRL(r.total)+'</div>' +
-           '</div>';
-  }).join("");
+  // Estado de conta de um fornecedor específico
+  var forn = _allFornecedores.find(function(f){ return String(f.id) === String(fornId); });
+  var nomeForn = forn ? forn.nome : "—";
+
+  var comps = _allComps.filter(function(c){
+    if(c.estado === 'anulado') return false;
+    return String(c.fornecedor_id) === String(fornId);
+  });
+  comps.sort(function(a,b){ return (b.data_competencia||"").localeCompare(a.data_competencia||""); });
+
+  var totalGeral = 0, totalPago = 0, totalPendente = 0;
+  comps.forEach(function(c){
+    totalGeral += Number(c.valor_total) || 0;
+    totalPago  += Number(c.valor_pago) || 0;
+    if(c.estado === 'pendente' || c.estado === 'pago_parcial'){
+      totalPendente += Number(c.valor_total) - Number(c.valor_pago || 0);
+    }
+  });
+
+  var html = '';
+  // KPIs do fornecedor
+  html += '<div class="ing-kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">';
+  html += '<div class="ing-kpi"><div class="ing-kpi-label">Total faturado</div><div class="ing-kpi-value">'+fmtBRL(totalGeral)+'</div><div class="ing-kpi-sub">'+comps.length+' comp.</div></div>';
+  html += '<div class="ing-kpi"><div class="ing-kpi-label">Pago</div><div class="ing-kpi-value" style="color:#a8d8b5">'+fmtBRL(totalPago)+'</div></div>';
+  html += '<div class="ing-kpi"><div class="ing-kpi-label">Pendente</div><div class="ing-kpi-value" style="color:#f0d890">'+fmtBRL(totalPendente)+'</div></div>';
+  html += '</div>';
+
+  if(comps.length === 0){
+    html += '<div class="empty">Sem movimentos com <b>'+escapeHtml(nomeForn)+'</b>.</div>';
+    el.innerHTML = html;
+    return;
+  }
+
+  html += '<div class="ing-table"><div class="ing-table-title">Estado de conta · '+escapeHtml(nomeForn)+'</div>';
+  html += '<div class="ing-table-row header"><div>Data · descrição</div><div></div><div></div><div>Valor</div><div>Estado</div></div>';
+  comps.forEach(function(c){
+    var estado = c.estado || 'pendente';
+    var est = ESTADO_LABEL[estado] || estado;
+    var color = estado === 'pago' ? '#a8d8b5' : (estado === 'pendente' ? '#f0d890' : '#ddd');
+    var dataT = fmtDate(c.data_competencia);
+    if(estado === 'pago' && c.data_pagamento) dataT += ' / pago ' + fmtDate(c.data_pagamento);
+    html += '<div class="ing-table-row" data-comp="'+c.id+'">' +
+      '<div>'+dataT+' · '+escapeHtml((c.descricao||"").slice(0,40))+'</div>' +
+      '<div></div><div></div>' +
+      '<div>'+fmtMoney(c.valor_total)+'</div>' +
+      '<div style="color:'+color+';font-size:11px">'+est+'</div>' +
+    '</div>';
+  });
+  html += '<div class="ing-table-row total"><div>Totais</div><div></div><div></div><div>'+fmtMoney(totalGeral)+'</div><div style="color:#f0d890">'+fmtMoney(totalPendente)+' pend</div></div>';
+  html += '</div>';
+
+  el.innerHTML = html;
+  el.querySelectorAll('[data-comp]').forEach(function(r){
+    r.addEventListener('click', function(){ openCompModal(r.dataset.comp); });
+  });
 }
 
 function exportPagamentosExcel(){
@@ -2036,8 +2143,11 @@ function filtrarReservasNoMes(rows, y, m){
 function agruparDespesasMes(y, m, incluirConsorcio){
   var ini = dreFirstDay(y, m);
   var fim = dreLastDay(y, m);
+  // Regra: só entra no DRE o que foi efetivamente pago (ou parcialmente pago)
+  // Pendentes NÃO impactam o resultado.
   var list = _allComps.filter(function(c){
     if(c.estado === 'anulado') return false;
+    if(c.estado === 'pendente') return false; // pendente não entra no EERR
     if(!c.data_competencia) return false;
     if(c.data_competencia < ini || c.data_competencia > fim) return false;
     if(!incluirConsorcio && c.centro_custo === 'consorcio') return false;
@@ -2045,13 +2155,19 @@ function agruparDespesasMes(y, m, incluirConsorcio){
   });
 
   // Map: grupo -> categoria_nome -> soma
+  // Para parciais usamos valor_pago (só o efetivamente pago).
+  // Para 'pago' usamos valor_total (= valor_pago neste caso).
   var grupos = {};
   list.forEach(function(c){
     var catNome = c.categorias_dre ? c.categorias_dre.nome : "Sem categoria";
     var grupo = c.categorias_dre ? c.categorias_dre.grupo : "nao_operacional";
+    var valor = (c.estado === 'pago_parcial')
+      ? (Number(c.valor_pago) || 0)
+      : (Number(c.valor_total) || 0);
+    if(valor === 0) return;
     if(!grupos[grupo]) grupos[grupo] = {};
     if(!grupos[grupo][catNome]) grupos[grupo][catNome] = 0;
-    grupos[grupo][catNome] += Number(c.valor_total) || 0;
+    grupos[grupo][catNome] += valor;
   });
   return grupos;
 }
@@ -2138,7 +2254,7 @@ async function renderDRE(){
   }
   var incluirConsorcio = document.getElementById("dreIncluirConsorcio").checked;
   document.getElementById("dreMesAtual").textContent = dreMesLabel(_dreMes.y, _dreMes.m);
-  document.getElementById("dreSubtitle").textContent = incluirConsorcio ? "Consolidado + Consórcio · Competência" : "Nordestina (sem Consórcio) · Competência";
+  document.getElementById("dreSubtitle").textContent = incluirConsorcio ? "Consolidado + Consórcio · só pagos" : "Nordestina (sem Consórcio) · só pagos";
 
   var el = document.getElementById("dreBody");
   el.innerHTML = '<div class="loading">Carregando...</div>';
@@ -4836,7 +4952,7 @@ function init(){
   document.querySelectorAll(".chip-btn[data-pag-periodo]").forEach(function(b){
     b.addEventListener("click", function(){ aplicarPagPeriodoPreset(b.dataset.pagPeriodo); });
   });
-  ["pagDataIni","pagDataFim","bandejaCentroFilter","bandejaFornFilter","realMeioFilter","realFornFilter"].forEach(function(id){
+  ["pagDataIni","pagDataFim","bandejaCentroFilter","bandejaFornFilter","realMeioFilter","realFornFilter","contaFornFilter"].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.addEventListener("change", renderPagAtivo);
   });

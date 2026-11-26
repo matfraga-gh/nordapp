@@ -1151,10 +1151,15 @@
       <div id="realizadosList" class="pag-list"><div class="loading">Carregando...</div></div>
     </div>
 
-    <!-- ── TAB ESTADO DE CONTA ── -->
+    <!-- ── TAB ESTADO DE CONTA (por fornecedor) ── -->
     <div class="tab-pane" id="tabConta">
-      <div class="conta-hint">Total pago por meio de pagamento no período selecionado · útil para conciliar com o extrato real do banco.</div>
-      <div id="contaList" class="conta-list"><div class="loading">Carregando...</div></div>
+      <div class="conta-hint">Estado de conta por fornecedor · pendentes + pagos realizados</div>
+      <div class="filter-row">
+        <select id="contaFornFilter" class="filter-select">
+          <option value="">— Selecione um fornecedor —</option>
+        </select>
+      </div>
+      <div id="contaBody"><div class="field-hint" style="text-align:center;padding:30px;color:rgba(255,255,255,0.6)">Selecione um fornecedor acima para ver o estado de conta.</div></div>
     </div>
   </div>
 </div>
@@ -1200,6 +1205,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.14.0"></script>
+<script src="app.js?v=0.14.2"></script>
 </body>
 </html>
