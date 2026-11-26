@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.14.2 · DRE só pagos + Estado conta fornecedor · 2026-11-25");
+console.log("NORDAPP v0.15.0 · Calendario · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.14.2 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -352,6 +352,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "pagos"){ goToPagos(); return; }
   if(moduleId === "painel_resultados"){ goToDRE(); return; }
   if(moduleId === "ingresos"){ goToIngresos(); return; }
+  if(moduleId === "disponibilidade"){ goToCalendario(); return; }
   if(moduleId === "caixa"){ goToCaixa(); return; }
   if(moduleId === "egresos"){ goToEgresos(); return; }
   if(moduleId === "retiros_socios"){ goToRetiros(); return; }
@@ -4844,6 +4845,200 @@ async function goToAnulados(){
   await renderAnulados();
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// MÓDULO CALENDÁRIO DE DISPONIBILIDADE
+// ═════════════════════════════════════════════════════════════════════
+var _calMes = null; // {y, m}
+var _calReservas = null;
+var UNIDADES_CANONICAS = ['Loft 01','Loft 02','Loft 03','Loft 04','Loft 05','Loft 07','Loft 08','Loft 09','Loft 10','Loft 11','Casa Nordestina'];
+
+function calMesLabel(y, m){
+  var s = new Date(y, m, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+async function loadCalReservas(y, m){
+  // Fetch reservas del período (incluindo que cruzam meses)
+  var firstDay = new Date(y, m, 1).toISOString().slice(0,10);
+  var lastDay = new Date(y, m+1, 0).toISOString().slice(0,10);
+  var q = "reservas?select=id,apto,checkin,checkout,nome,canal,adultos,criancas,idades_criancas,cafe,cozinheira,adic_early_ci,adic_late_co,pago_anticipo,pago_saldo,anticipo,saldo_cobrado,total,status" +
+    "&or=(and(checkin.lte." + lastDay + ",checkout.gte." + firstDay + "))" +
+    "&limit=500";
+  return await api(q) || [];
+}
+
+function reservaCategoria(r){
+  var st = String(r.status || "").toLowerCase();
+  if(st.indexOf("cancel") >= 0) return "cancelada";
+  if(st === 'pre_reserva' || st.indexOf("pré") >= 0) return "preRes";
+  // Com pago: tem pago_anticipo com valor (não null nem vazio)
+  var temPago = (r.pago_anticipo && String(r.pago_anticipo).trim() !== "") || (r.pago_saldo && String(r.pago_saldo).trim() !== "");
+  return temPago ? "comPag" : "semPag";
+}
+
+async function renderCalendario(){
+  if(!_calMes){
+    var hoje = new Date();
+    _calMes = { y: hoje.getFullYear(), m: hoje.getMonth() };
+  }
+  var y = _calMes.y, m = _calMes.m;
+  document.getElementById("calMesAtual").textContent = calMesLabel(y, m);
+
+  var el = document.getElementById("calBody");
+  el.innerHTML = '<div class="loading">Carregando...</div>';
+
+  _calReservas = await loadCalReservas(y, m);
+
+  var daysInMonth = new Date(y, m+1, 0).getDate();
+  var hojeISO = new Date().toISOString().slice(0,10);
+
+  // Unidades: canônicas + extras que aparecerem
+  var aptosSet = {};
+  UNIDADES_CANONICAS.forEach(function(u){ aptosSet[u] = true; });
+  _calReservas.forEach(function(r){
+    if(r.apto) aptosSet[r.apto] = true;
+  });
+  var aptos = Object.keys(aptosSet).sort(function(a,b){
+    // Casa Nordestina al final, demás alfabético
+    if(a.indexOf('Casa') >= 0) return 1;
+    if(b.indexOf('Casa') >= 0) return -1;
+    return a.localeCompare(b);
+  });
+
+  // Grid template: 110px para unidade + 1fr para cada día
+  var gridCols = '110px repeat(' + daysInMonth + ', minmax(36px, 1fr))';
+  el.style.gridTemplateColumns = gridCols;
+
+  var html = "";
+  // Header row
+  html += '<div class="cal-unit header">Unidade</div>';
+  var DOW = ['D','S','T','Q','Q','S','S'];
+  for(var d = 1; d <= daysInMonth; d++){
+    var dt = new Date(y, m, d);
+    var dow = dt.getDay(); // 0=Dom
+    var iso = dt.toISOString().slice(0,10);
+    var isWeekend = (dow === 5 || dow === 6);
+    var isHoje = iso === hojeISO;
+    var cls = 'cal-header-day';
+    if(isWeekend) cls += ' weekend';
+    if(isHoje) cls += ' hoje';
+    html += '<div class="'+cls+'"><div class="dow">'+DOW[dow]+'</div><div class="n">'+d+'</div></div>';
+  }
+
+  // Rows por apto
+  aptos.forEach(function(apto){
+    html += '<div class="cal-unit">'+escapeHtml(apto)+'</div>';
+    // Celdas
+    for(var d = 1; d <= daysInMonth; d++){
+      var dt = new Date(y, m, d);
+      var dow = dt.getDay();
+      var iso = dt.toISOString().slice(0,10);
+      var cls = 'cal-cell';
+      if(dow === 5 || dow === 6) cls += ' weekend';
+      if(iso === hojeISO) cls += ' hoje';
+      html += '<div class="'+cls+'" data-apto="'+escapeHtml(apto)+'" data-dia="'+d+'"></div>';
+    }
+  });
+
+  el.innerHTML = html;
+
+  // Agora inserir as reservas como barras posicionadas absolutamente dentro das linhas
+  // Usamos position:absolute relativo a .cal-grid
+  var monthIni = new Date(y, m, 1);
+  var monthFim = new Date(y, m, daysInMonth);
+
+  // Calcular layout: primeiro día = col 2 (col 1 é unidade), cada día ocupa 1/(daysInMonth) do width restante
+  // Melhor: medimos depois do render. Usamos offsetLeft/offsetWidth das celdas.
+  // Delay para o layout se estabilizar
+  setTimeout(function(){
+    aptos.forEach(function(apto){
+      // Filtra reservas deste apto que intersectam o mês
+      var rs = _calReservas.filter(function(r){
+        if((r.apto || "") !== apto) return false;
+        if(!r.checkin || !r.checkout) return false;
+        var ci = new Date(r.checkin + "T00:00:00");
+        var co = new Date(r.checkout + "T00:00:00");
+        return co >= monthIni && ci <= monthFim;
+      });
+      rs.forEach(function(r){
+        var ci = new Date(r.checkin + "T00:00:00");
+        var co = new Date(r.checkout + "T00:00:00");
+        // Clamp to month
+        var startDate = ci < monthIni ? monthIni : ci;
+        var endDate   = co > monthFim ? new Date(y, m, daysInMonth) : co;
+        var startDay = startDate.getDate();
+        var endDay = endDate.getDate();
+
+        // Pegar células de ancla (primeira) e última para calcular posição
+        var startCell = el.querySelector('[data-apto="' + CSS.escape(apto) + '"][data-dia="' + startDay + '"]');
+        var endCell = el.querySelector('[data-apto="' + CSS.escape(apto) + '"][data-dia="' + endDay + '"]');
+        if(!startCell || !endCell) return;
+
+        var gridRect = el.getBoundingClientRect();
+        var sRect = startCell.getBoundingClientRect();
+        var eRect = endCell.getBoundingClientRect();
+
+        var left = sRect.left - gridRect.left + 2;
+        var width = (eRect.left + eRect.width) - sRect.left - 4;
+        var top = sRect.top - gridRect.top + 2;
+        var height = sRect.height - 4;
+
+        var cat = reservaCategoria(r);
+        var bar = document.createElement('div');
+        bar.className = 'cal-reserva ' + cat;
+        bar.style.left = left + 'px';
+        bar.style.top = top + 'px';
+        bar.style.width = width + 'px';
+        bar.style.height = height + 'px';
+        bar.style.position = 'absolute';
+        bar.style.bottom = 'auto';
+
+        // Conteúdo: nome + pax + serviços
+        var pax = (r.adultos || 0);
+        var paxTxt = pax + 'A';
+        if(r.criancas && r.criancas > 0) paxTxt += '+' + r.criancas + 'C';
+        var servs = [];
+        if(r.cafe) servs.push('☕');
+        if(r.cozinheira) servs.push('👩‍🍳');
+        if(r.adic_early_ci) servs.push('🌅');
+        if(r.adic_late_co) servs.push('🌙');
+        var servTxt = servs.join(' ');
+        var nome = (r.nome || "—").split(' ')[0]; // primeiro nome
+        if((r.nome||"").split(' ').length > 1){
+          var parts = (r.nome||"").split(' ');
+          nome = parts[0] + ' ' + parts[parts.length-1].charAt(0);
+        }
+        bar.innerHTML = '<div class="r-nome">' + escapeHtml(nome) + ' · ' + paxTxt + (servTxt ? ' ' + servTxt : '') + '</div>' +
+                        '<div class="r-meta">' + fmtDate(r.checkin) + '–' + fmtDate(r.checkout) + ' · ' + (r.canal || '') + '</div>';
+        bar.title = (r.nome || '—') + ' · ' + fmtDate(r.checkin) + ' até ' + fmtDate(r.checkout) + '\n' + paxTxt + ' · ' + (r.canal || '') + '\nTotal: ' + fmtBRL(r.total);
+        bar.addEventListener('click', function(){
+          showToast('Abrir reserva #' + r.id + ' (em breve)');
+        });
+        el.appendChild(bar);
+      });
+    });
+  }, 50);
+
+  document.getElementById("calSubtitle").textContent = aptos.length + " unidades · " + _calReservas.length + " reservas no mês";
+}
+
+function calGoMes(delta){
+  var y = _calMes.y, m = _calMes.m + delta;
+  while(m < 0){ m += 12; y--; }
+  while(m > 11){ m -= 12; y++; }
+  _calMes = { y: y, m: m };
+  renderCalendario();
+}
+
+async function goToCalendario(){
+  showView("viewCalendario");
+  if(!_calMes){
+    var hoje = new Date();
+    _calMes = { y: hoje.getFullYear(), m: hoje.getMonth() };
+  }
+  renderCalendario();
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -4964,6 +5159,12 @@ function init(){
   });
   var btnExpP = document.getElementById("btnExportPagamentos");
   if(btnExpP) btnExpP.addEventListener("click", exportPagamentosExcel);
+
+  // ─── Calendário ───
+  var btnCalPrev = document.getElementById("calMesPrev");
+  if(btnCalPrev) btnCalPrev.addEventListener("click", function(){ calGoMes(-1); });
+  var btnCalNext = document.getElementById("calMesNext");
+  if(btnCalNext) btnCalNext.addEventListener("click", function(){ calGoMes(1); });
 
   // ─── DRE ───
   var btnPrev = document.getElementById("dreMesPrev");

@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.13.4">
+<link rel="stylesheet" href="styles.css?v=0.15.0">
 </head>
 <body>
 
@@ -493,6 +493,36 @@
     <div class="modal-footer">
       <button class="btn-secondary" id="btnDeleteCat" style="display:none">Apagar</button>
       <button class="btn-primary" id="btnSaveCat">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MÓDULO CALENDÁRIO DE DISPONIBILIDADE ════════════════════════════ -->
+<div id="viewCalendario" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubVendas">← Vendas</button>
+      <div class="module-title-block">
+        <div class="module-title">📅 Calendário</div>
+        <div class="module-subtitle" id="calSubtitle">—</div>
+      </div>
+    </div>
+
+    <div class="cal-nav">
+      <button class="chip-btn" id="calMesPrev">‹</button>
+      <div class="cal-mes-atual" id="calMesAtual">—</div>
+      <button class="chip-btn" id="calMesNext">›</button>
+    </div>
+
+    <div class="cal-legend">
+      <span><span class="cal-dot preRes"></span>Pré-reserva</span>
+      <span><span class="cal-dot semPag"></span>Sem pago</span>
+      <span><span class="cal-dot comPag"></span>Com pago</span>
+      <span class="cal-hoy-marker">■ Hoje</span>
+    </div>
+
+    <div class="cal-wrapper">
+      <div id="calBody" class="cal-grid"><div class="loading">Carregando...</div></div>
     </div>
   </div>
 </div>
@@ -1205,6 +1235,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.14.2"></script>
+<script src="app.js?v=0.15.0"></script>
 </body>
 </html>
