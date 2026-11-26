@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.15.0 · Calendario · 2026-11-26");
+console.log("NORDAPP v0.15.1 · Calendario fix sticky + sem canal · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.1 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -4850,7 +4850,8 @@ async function goToAnulados(){
 // ═════════════════════════════════════════════════════════════════════
 var _calMes = null; // {y, m}
 var _calReservas = null;
-var UNIDADES_CANONICAS = ['Loft 01','Loft 02','Loft 03','Loft 04','Loft 05','Loft 07','Loft 08','Loft 09','Loft 10','Loft 11','Casa Nordestina'];
+// 9 lofts + Casa Nordestina (mesmas unidades do módulo Ingresos)
+var UNIDADES_CANONICAS = ['Loft 01','Loft 04','Loft 05','Loft 07','Loft 08','Loft 09','Loft 10','Loft 11','Casa Nordestina'];
 
 function calMesLabel(y, m){
   var s = new Date(y, m, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
@@ -5009,7 +5010,7 @@ async function renderCalendario(){
           nome = parts[0] + ' ' + parts[parts.length-1].charAt(0);
         }
         bar.innerHTML = '<div class="r-nome">' + escapeHtml(nome) + ' · ' + paxTxt + (servTxt ? ' ' + servTxt : '') + '</div>' +
-                        '<div class="r-meta">' + fmtDate(r.checkin) + '–' + fmtDate(r.checkout) + ' · ' + (r.canal || '') + '</div>';
+                        '<div class="r-meta">' + fmtDate(r.checkin) + '–' + fmtDate(r.checkout) + '</div>';
         bar.title = (r.nome || '—') + ' · ' + fmtDate(r.checkin) + ' até ' + fmtDate(r.checkout) + '\n' + paxTxt + ' · ' + (r.canal || '') + '\nTotal: ' + fmtBRL(r.total);
         bar.addEventListener('click', function(){
           showToast('Abrir reserva #' + r.id + ' (em breve)');

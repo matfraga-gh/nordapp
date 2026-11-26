@@ -1787,24 +1787,26 @@ a { color: var(--ocean); text-decoration: none; }
 .cal-header-day .dow { font-size: 9px; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.5px; }
 .cal-header-day .n { font-size: 13px; font-weight: 700; margin-top: 2px; }
 .cal-unit {
-  background: rgba(0,0,0,0.3);
+  background: #122a3d;  /* opaco · tapar barras por abaixo */
   color: var(--white);
   font-size: 12px;
   font-weight: 600;
   padding: 10px 10px;
-  border-right: 1px solid rgba(255,255,255,0.1);
+  border-right: 2px solid rgba(255,255,255,0.15);
   border-bottom: 1px solid rgba(255,255,255,0.05);
   white-space: nowrap;
   position: sticky;
   left: 0;
-  z-index: 2;
+  z-index: 10;  /* acima das barras de reserva (z-index 3) */
+  box-shadow: 2px 0 6px rgba(0,0,0,0.35);  /* sombra à direita para separar */
 }
 .cal-unit.header {
-  background: rgba(0,0,0,0.5);
+  background: #0d1f2d;  /* ainda mais escuro para header */
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(255,255,255,0.7);
+  z-index: 11;  /* acima do header de dias */
 }
 
 /* Barras de reserva */
