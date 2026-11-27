@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.15.3 · Tooltip resumido · 2026-11-26");
+console.log("NORDAPP v0.15.4 · Ficha compacta + codigo · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.3 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.4 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -5096,7 +5096,7 @@ async function openFichaHospede(id){
 
   // Reserva
   document.getElementById("fkApto").value = r.apto || "";
-  document.getElementById("fkCodigo").value = "NR-" + String(r.id).padStart(5,"0");
+  document.getElementById("fkCodigo").value = r.codigo_reserva || ("NR-" + String(r.id).padStart(5,"0"));
   document.getElementById("fkCheckin").value = r.checkin || "";
   document.getElementById("fkCheckout").value = r.checkout || "";
   document.getElementById("fkCanal").value = r.canal || "";

@@ -1947,3 +1947,33 @@ a { color: var(--ocean); text-decoration: none; }
   font-size: 11px;
   color: var(--text-soft);
 }
+
+/* v0.15.4 · Ficha compacta */
+.ficha-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 4px 0;
+}
+.ficha-chip-grid label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 6px 4px;
+  background: var(--sand-mid);
+  border-radius: var(--radius-sm);
+  margin: 0 !important;
+  cursor: pointer;
+  justify-content: center;
+}
+.ficha-chip-grid label:has(input:checked) {
+  background: var(--ocean);
+  color: var(--white);
+}
+.ficha-chip-grid input[type=checkbox] { margin: 0; cursor: pointer; }
+/* Reduzir padding das secciones */
+.ficha-section { margin-top: 10px; padding-top: 8px; }
+.ficha-sec-title { margin-bottom: 6px; font-size: 11px; }

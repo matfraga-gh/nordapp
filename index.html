@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.15.2">
+<link rel="stylesheet" href="styles.css?v=0.15.4">
 </head>
 <body>
 
@@ -574,11 +574,11 @@
       <!-- Seção 4 · Serviços adicionais -->
       <div class="ficha-section">
         <div class="ficha-sec-title">🧰 Serviços adicionais</div>
-        <div class="ficha-check-grid">
-          <label><input type="checkbox" id="fkSvCafe"> Café da manhã</label>
-          <label><input type="checkbox" id="fkSvCozinheira"> Cozinheira</label>
-          <label><input type="checkbox" id="fkSvEarly"> Early check-in</label>
-          <label><input type="checkbox" id="fkSvLate"> Late check-out</label>
+        <div class="ficha-chip-grid">
+          <label title="Café da manhã"><input type="checkbox" id="fkSvCafe"> ☕ CDM</label>
+          <label title="Cozinheira"><input type="checkbox" id="fkSvCozinheira"> 👩‍🍳 COZ</label>
+          <label title="Early check-in"><input type="checkbox" id="fkSvEarly"> 🌅 ECI</label>
+          <label title="Late check-out"><input type="checkbox" id="fkSvLate"> 🌙 LCO</label>
         </div>
         <div class="row-2">
           <div><label>Valor cozinheira (R$)</label><input type="number" id="fkSvCozinheiraV" step="0.01"></div>
@@ -657,11 +657,11 @@
       <div class="ficha-section">
         <div class="ficha-sec-title">🚪 Check-out</div>
         <div id="fkCheckoutInfo" class="ficha-info">Ainda não realizado</div>
-        <div class="ficha-check-grid">
-          <label><input type="checkbox" id="fkCoRoupas"> Roupas de cama OK</label>
-          <label><input type="checkbox" id="fkCoEletro"> Eletro OK</label>
-          <label><input type="checkbox" id="fkCoInventario"> Inventário OK</label>
-          <label><input type="checkbox" id="fkCoChave"> Chaves devolvidas</label>
+        <div class="ficha-chip-grid">
+          <label title="Roupas de cama OK"><input type="checkbox" id="fkCoRoupas"> 🛏 Roupa</label>
+          <label title="Eletrodomésticos OK"><input type="checkbox" id="fkCoEletro"> 🔌 Eletro</label>
+          <label title="Inventário completo"><input type="checkbox" id="fkCoInventario"> 📋 Inv.</label>
+          <label title="Chaves devolvidas"><input type="checkbox" id="fkCoChave"> 🔑 Chave</label>
         </div>
         <label>Observação check-out</label>
         <textarea id="fkCoObs" rows="2" placeholder="Danos, pendentes, notas..."></textarea>
@@ -1415,6 +1415,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.15.3"></script>
+<script src="app.js?v=0.15.4"></script>
 </body>
 </html>
