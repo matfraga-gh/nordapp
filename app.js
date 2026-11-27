@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.16.2 · Serv adic texto + resumo reordenado · 2026-11-26");
+console.log("NORDAPP v0.16.3 · Marca Nordestina Lofts + svc compactos · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.2 · build 2026-11-26";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.3 · build 2026-11-26";
 }
 
 function renderPainelGrid(){

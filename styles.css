@@ -1992,22 +1992,41 @@ a { color: var(--ocean); text-decoration: none; }
 .publico-header {
   text-align: center;
   margin: 24px 0 20px;
-  color: var(--white);
+  color: var(--sand);
+}
+.publico-palm {
+  width: 44px;
+  height: 44px;
+  color: var(--sand);
+  display: block;
+  margin: 0 auto 8px;
 }
 .publico-brand {
   font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 800;
-  letter-spacing: 4px;
+  letter-spacing: 6px;
   color: var(--sand);
   text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  line-height: 1;
 }
 .publico-tagline {
-  font-size: 12px;
-  letter-spacing: 3px;
-  color: rgba(244,235,215,0.75);
-  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--sand);
+  margin-top: 10px;
   text-transform: uppercase;
+}
+.publico-tagline .pt-line {
+  display: inline-block;
+  width: 28px;
+  height: 1px;
+  background: var(--sand);
+  opacity: 0.8;
 }
 .publico-card {
   background: var(--sand);
@@ -2128,18 +2147,18 @@ a { color: var(--ocean); text-decoration: none; }
   letter-spacing: -0.2px;
 }
 
-/* Serviços adicionais no form público · texto completo */
+/* Serviços adicionais no form público · 1 por linha, compactos */
 .publico-svc-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 6px 0 4px;
 }
 .publico-svc-grid label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 8px 12px;
   background: var(--white);
   border: 1px solid #ddd;
   border-radius: 8px;
@@ -2147,6 +2166,11 @@ a { color: var(--ocean); text-decoration: none; }
   font-size: 13px;
   color: var(--ocean);
   font-weight: 500;
+  white-space: nowrap;
+}
+.publico-svc-grid label input {
+  margin: 0;
+  flex-shrink: 0;
 }
 .publico-svc-grid label:has(input:checked) {
   background: var(--sand);
