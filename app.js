@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.15.2 · Ficha hospede · 2026-11-26");
+console.log("NORDAPP v0.15.3 · Tooltip resumido · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.2 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.3 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -5011,7 +5011,22 @@ async function renderCalendario(){
         }
         bar.innerHTML = '<div class="r-nome">' + escapeHtml(nome) + ' · ' + paxTxt + (servTxt ? ' ' + servTxt : '') + '</div>' +
                         '<div class="r-meta">' + fmtDate(r.checkin) + '–' + fmtDate(r.checkout) + '</div>';
-        bar.title = (r.nome || '—') + ' · ' + fmtDate(r.checkin) + ' até ' + fmtDate(r.checkout) + '\n' + paxTxt + ' · ' + (r.canal || '') + '\nTotal: ' + fmtBRL(r.total);
+        // Tooltip resumido: Nome Lx · dd/mm-dd/mm · 2A+1C · ☕👩‍🍳 · Ttal R$X · Sal R$Y
+        function ddmm(iso){ if(!iso) return ''; var p = iso.slice(0,10).split('-'); return p[2]+'/'+p[1]; }
+        var nomeCurto = (function(){
+          var ps = String(r.nome || '—').trim().split(/\s+/);
+          if(ps.length === 1) return ps[0];
+          return ps[0] + ' ' + ps[ps.length-1].charAt(0) + '.';
+        })();
+        var svcShort = servs.join('');
+        var totalNum = Number(r.total) || 0;
+        var pagoNum = (Number(r.anticipo)||0) + (Number(r.saldo_cobrado)||0);
+        var saldoNum = totalNum - pagoNum;
+        var tt = nomeCurto + ' · ' + ddmm(r.checkin) + '-' + ddmm(r.checkout) + ' · ' + paxTxt;
+        if(svcShort) tt += ' · ' + svcShort;
+        tt += ' · Ttal R$ ' + Math.round(totalNum).toLocaleString('pt-BR');
+        if(saldoNum > 0) tt += ' · Sal R$ ' + Math.round(saldoNum).toLocaleString('pt-BR');
+        bar.title = tt;
         bar.addEventListener('click', function(){
           openFichaHospede(r.id);
         });
