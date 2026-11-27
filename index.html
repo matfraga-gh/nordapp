@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.16.0">
+<link rel="stylesheet" href="styles.css?v=0.16.1">
 </head>
 <body>
 
@@ -62,6 +62,15 @@
         <div class="field-hint">Separar por vírgula</div>
       </div>
 
+      <label>Tem interesse em contratar serviços adicionais?</label>
+      <div class="ficha-chip-grid">
+        <label title="Café da manhã"><input type="checkbox" id="pbSvCafe"> ☕ CDM</label>
+        <label title="Cozinheira"><input type="checkbox" id="pbSvCoz"> 👩‍🍳 COZ</label>
+        <label title="Early check-in"><input type="checkbox" id="pbSvEci"> 🌅 ECI</label>
+        <label title="Late check-out"><input type="checkbox" id="pbSvLco"> 🌙 LCO</label>
+      </div>
+      <div class="field-hint">Opcional · podemos ajustar após a cotação</div>
+
       <button class="btn-primary publico-btn" id="btnPbEnviar">Enviar pré-reserva</button>
       <div class="publico-footer">Já temos uma pré-reserva? Aguarde nosso retorno pelo mesmo canal (WhatsApp/email).</div>
     </div>
@@ -77,10 +86,10 @@
     </div>
     <div class="publico-card publico-ok">
       <div class="publico-check">✓</div>
-      <h2>Recebemos sua pré-reserva</h2>
-      <p>Seu código é:</p>
+      <h2 id="pbOkTitle">Recebemos sua pré-reserva</h2>
+      <p id="pbOkLbl">Seu código é:</p>
       <div class="publico-codigo" id="pbCodigoOk">—</div>
-      <p class="publico-sub">Em breve retornaremos pelo mesmo canal (WhatsApp/email) com a cotação completa.</p>
+      <p class="publico-sub" id="pbOkMsg">Em breve retornaremos pelo mesmo canal (WhatsApp/email) com a cotação completa.</p>
       <p class="publico-sub">Obrigado!</p>
     </div>
   </div>
@@ -97,30 +106,43 @@
       <h2>Completar dados</h2>
       <p class="publico-sub">Reserva <b id="pbcCodigo">—</b> · Falta só mais um passo.</p>
 
+      <!-- Resumen da reserva (readonly) -->
+      <div class="publico-resumo" id="pbcResumo">—</div>
+
       <label>CPF ou Passaporte <span class="req">*</span></label>
       <input type="text" id="pbcDoc">
 
       <div class="row-2">
-        <div><label>Nacionalidade</label><input type="text" id="pbcNacio" placeholder="Brasileiro"></div>
+        <div>
+          <label>Nacionalidade</label>
+          <input type="text" id="pbcNacio" list="nacionalidadesList" placeholder="Digite para pesquisar">
+          <datalist id="nacionalidadesList">
+            <option value="Brasileira"><option value="Argentina"><option value="Uruguaia">
+            <option value="Chilena"><option value="Paraguaia"><option value="Boliviana">
+            <option value="Peruana"><option value="Colombiana"><option value="Venezuelana">
+            <option value="Mexicana"><option value="Americana (EUA)"><option value="Canadense">
+            <option value="Portuguesa"><option value="Espanhola"><option value="Francesa">
+            <option value="Italiana"><option value="Alemã"><option value="Inglesa">
+            <option value="Irlandesa"><option value="Holandesa"><option value="Belga">
+            <option value="Suíça"><option value="Austríaca"><option value="Sueca">
+            <option value="Dinamarquesa"><option value="Norueguesa"><option value="Finlandesa">
+            <option value="Russa"><option value="Polonesa"><option value="Tcheca">
+            <option value="Chinesa"><option value="Japonesa"><option value="Coreana">
+            <option value="Indiana"><option value="Australiana"><option value="Neozelandesa">
+            <option value="Israelense"><option value="Sul-africana"><option value="Outra">
+          </datalist>
+        </div>
         <div><label>Email <span class="req">*</span></label><input type="email" id="pbcEmail"></div>
       </div>
 
       <label>WhatsApp <span class="req">*</span></label>
       <input type="text" id="pbcWhats" placeholder="+55 11 99999-0000">
 
-      <label>Serviços adicionais (opcional)</label>
-      <div class="ficha-chip-grid">
-        <label><input type="checkbox" id="pbcCafe"> ☕ CDM</label>
-        <label><input type="checkbox" id="pbcCoz"> 👩‍🍳 COZ</label>
-        <label><input type="checkbox" id="pbcEci"> 🌅 ECI</label>
-        <label><input type="checkbox" id="pbcLco"> 🌙 LCO</label>
-      </div>
-
       <label>Observações / pedidos especiais</label>
       <textarea id="pbcObs" rows="2" placeholder="Opcional"></textarea>
 
-      <button class="btn-primary publico-btn" id="btnPbCompletar">Enviar e aguardar pagamento</button>
-      <div class="publico-footer">Após enviar, você receberá instruções para o pagamento do antecipado em até 24h.</div>
+      <button class="btn-primary publico-btn" id="btnPbCompletar">Confirmar Reserva</button>
+      <div class="publico-footer">Após confirmar, você terá 24h para realizar o pagamento do antecipado.</div>
     </div>
   </div>
 </div>
@@ -1528,6 +1550,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.16.0"></script>
+<script src="app.js?v=0.16.1"></script>
 </body>
 </html>

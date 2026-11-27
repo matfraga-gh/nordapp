@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.16.0 · Vistas publicas · 2026-11-26");
+console.log("NORDAPP v0.16.1 · Formularios publicos refinados · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.0 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.1 · build 2026-11-26";
 }
 
 function renderPainelGrid(){
@@ -5293,8 +5293,18 @@ function showPublicPreReserva(){
   showView("viewPublicoPreReserva");
 }
 
-function showPublicOk(codigo){
+function showPublicOk(codigo, tipo){
+  // tipo: 'pre' (pré-reserva recebida) ou 'confirmada' (confirmação final)
   document.getElementById("pbCodigoOk").textContent = codigo;
+  if(tipo === 'confirmada'){
+    document.getElementById("pbOkTitle").textContent = "Reserva confirmada!";
+    document.getElementById("pbOkLbl").textContent = "Código:";
+    document.getElementById("pbOkMsg").innerHTML = "Obrigado por confirmar! Você tem <b>24 horas</b> para realizar o pagamento do antecipado.<br>Em instantes retornaremos pelo mesmo canal com os dados de pagamento.";
+  } else {
+    document.getElementById("pbOkTitle").textContent = "Recebemos sua pré-reserva";
+    document.getElementById("pbOkLbl").textContent = "Seu código é:";
+    document.getElementById("pbOkMsg").innerHTML = "Em breve retornaremos pelo mesmo canal (WhatsApp/email) com a cotação completa.";
+  }
   showView("viewPublicoOk");
 }
 
@@ -5357,6 +5367,10 @@ async function enviarPreReserva(){
     adultos: ad,
     criancas: cr,
     idades_criancas: idades,
+    adic_cafe: document.getElementById("pbSvCafe").checked,
+    adic_cozinheira: document.getElementById("pbSvCoz").checked,
+    adic_early_ci: document.getElementById("pbSvEci").checked,
+    adic_late_co: document.getElementById("pbSvLco").checked,
     status: 'pre_reserva',
     canal: 'Web pré-reserva',
     data_reserva: new Date().toISOString().slice(0,10),
@@ -5376,12 +5390,50 @@ async function showPublicCompletar(codigo){
   var r = await api("reservas?codigo_reserva=eq." + encodeURIComponent(codigo) + "&select=*");
   if(!r || r.length === 0){
     document.getElementById("pbcCodigo").textContent = "Reserva não encontrada";
+    document.getElementById("pbcResumo").innerHTML = "Verifique o link ou entre em contato com a Pousada.";
     showView("viewPublicoCompletar");
     document.getElementById("btnPbCompletar").disabled = true;
     return;
   }
+  var res = r[0];
   document.getElementById("pbcCodigo").textContent = codigo;
-  document.getElementById("btnPbCompletar").dataset.resId = r[0].id;
+  document.getElementById("btnPbCompletar").dataset.resId = res.id;
+
+  // Armar resumen
+  var noites = 0;
+  if(res.checkin && res.checkout){
+    noites = Math.round((new Date(res.checkout) - new Date(res.checkin)) / 86400000);
+  }
+  var pax = (res.adultos || 0) + "A";
+  if(res.criancas > 0) pax += " + " + res.criancas + "C";
+  var servs = [];
+  if(res.adic_cafe) servs.push("☕ Café da manhã");
+  if(res.adic_cozinheira) servs.push("👩‍🍳 Cozinheira");
+  if(res.adic_early_ci) servs.push("🌅 Early check-in");
+  if(res.adic_late_co) servs.push("🌙 Late check-out");
+  var total = Number(res.total) || 0;
+  var porNoite = (total > 0 && noites > 0) ? (total / noites) : 0;
+
+  var html = '';
+  html += '<div class="r-linha"><span class="r-k">Hóspede</span><span class="r-v">'+escapeHtml(res.nome||"—")+'</span></div>';
+  html += '<div class="r-linha"><span class="r-k">Check-in</span><span class="r-v">'+fmtDate(res.checkin)+'</span></div>';
+  html += '<div class="r-linha"><span class="r-k">Check-out</span><span class="r-v">'+fmtDate(res.checkout)+' · '+noites+' noites</span></div>';
+  html += '<div class="r-linha"><span class="r-k">Pax</span><span class="r-v">'+pax+'</span></div>';
+  if(servs.length > 0){
+    html += '<div class="r-linha"><span class="r-k">Serviços</span><span class="r-v" style="font-size:12px">'+servs.join(" · ")+'</span></div>';
+  }
+  if(total > 0){
+    html += '<div class="r-divider"></div>';
+    if(porNoite > 0){
+      html += '<div class="r-linha"><span class="r-k">Por noite</span><span class="r-v">R$ '+porNoite.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div>';
+    }
+    html += '<div class="r-linha"><span class="r-k">Total</span><span class="r-v r-total">R$ '+total.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div>';
+  } else {
+    html += '<div class="r-divider"></div>';
+    html += '<div class="r-linha" style="font-size:11px;opacity:0.7">Valor cotado pela Pousada pelo mesmo canal.</div>';
+  }
+
+  document.getElementById("pbcResumo").innerHTML = html;
   showView("viewPublicoCompletar");
 }
 
@@ -5403,17 +5455,16 @@ async function enviarCompletarDados(){
     nacionalidade: document.getElementById("pbcNacio").value.trim() || null,
     email: email,
     telefone: whats,
-    adic_cafe: document.getElementById("pbcCafe").checked,
-    adic_cozinheira: document.getElementById("pbcCoz").checked,
-    adic_early_ci: document.getElementById("pbcEci").checked,
-    adic_late_co: document.getElementById("pbcLco").checked,
     obs_comercial: document.getElementById("pbcObs").value.trim() || null,
     status: 'aguardando_anticipo'
   };
   var r = await api("reservas?id=eq." + id, "PATCH", patch);
-  btn.disabled = false; btn.textContent = "Enviar e aguardar pagamento";
+  btn.disabled = false; btn.textContent = "Confirmar Reserva";
   if(!r){ alert("Erro ao enviar"); return; }
-  showPublicOk("Dados recebidos");
+  // Buscar código para mostrar
+  var r2 = await api("reservas?id=eq." + id + "&select=codigo_reserva");
+  var codigo = r2 && r2.length > 0 ? r2[0].codigo_reserva : id;
+  showPublicOk(codigo, 'confirmada');
 }
 
 function init(){
