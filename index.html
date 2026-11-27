@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.16.3">
+<link rel="stylesheet" href="styles.css?v=0.16.4">
 </head>
 <body>
 
@@ -16,7 +16,6 @@
 <div id="viewPublicoPreReserva" class="view">
   <div class="publico-wrap">
     <div class="publico-header">
-      <svg class="publico-palm" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 60 C 32 40, 30 24, 20 12 M32 60 C 32 48, 36 36, 50 24 M30 38 C 24 34, 16 32, 10 32 M34 38 C 40 34, 48 32, 54 32 M30 28 C 24 24, 18 20, 14 16 M34 28 C 40 24, 46 20, 50 16 M30 50 C 24 46, 18 42, 14 40 M34 50 C 40 46, 46 42, 50 40" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
       <div class="publico-brand">NORDESTINA LOFTS</div>
       <div class="publico-tagline"><span class="pt-line"></span>ICARAIZINHO DE AMONTADA<span class="pt-line"></span></div>
     </div>
@@ -65,10 +64,10 @@
 
       <label>Tem interesse em contratar serviços adicionais?</label>
       <div class="publico-svc-grid">
-        <label><input type="checkbox" id="pbSvCafe"> ☕ Café da manhã</label>
-        <label><input type="checkbox" id="pbSvCoz"> 👩‍🍳 Cozinheira</label>
-        <label><input type="checkbox" id="pbSvEci"> 🌅 Early check-in</label>
-        <label><input type="checkbox" id="pbSvLco"> 🌙 Late check-out</label>
+        <label><input type="checkbox" id="pbSvCafe"><span class="svc-emoji">☕</span><span class="svc-text">Café da manhã</span></label>
+        <label><input type="checkbox" id="pbSvCoz"><span class="svc-emoji">👩‍🍳</span><span class="svc-text">Cozinheira</span></label>
+        <label><input type="checkbox" id="pbSvEci"><span class="svc-emoji">🌅</span><span class="svc-text">Early check-in</span></label>
+        <label><input type="checkbox" id="pbSvLco"><span class="svc-emoji">🌙</span><span class="svc-text">Late check-out</span></label>
       </div>
       <div class="field-hint">Opcional · podemos ajustar após a cotação</div>
 
@@ -82,7 +81,6 @@
 <div id="viewPublicoOk" class="view">
   <div class="publico-wrap">
     <div class="publico-header">
-      <svg class="publico-palm" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 60 C 32 40, 30 24, 20 12 M32 60 C 32 48, 36 36, 50 24 M30 38 C 24 34, 16 32, 10 32 M34 38 C 40 34, 48 32, 54 32 M30 28 C 24 24, 18 20, 14 16 M34 28 C 40 24, 46 20, 50 16 M30 50 C 24 46, 18 42, 14 40 M34 50 C 40 46, 46 42, 50 40" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
       <div class="publico-brand">NORDESTINA LOFTS</div>
       <div class="publico-tagline"><span class="pt-line"></span>ICARAIZINHO DE AMONTADA<span class="pt-line"></span></div>
     </div>
@@ -101,7 +99,6 @@
 <div id="viewPublicoCompletar" class="view">
   <div class="publico-wrap">
     <div class="publico-header">
-      <svg class="publico-palm" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 60 C 32 40, 30 24, 20 12 M32 60 C 32 48, 36 36, 50 24 M30 38 C 24 34, 16 32, 10 32 M34 38 C 40 34, 48 32, 54 32 M30 28 C 24 24, 18 20, 14 16 M34 28 C 40 24, 46 20, 50 16 M30 50 C 24 46, 18 42, 14 40 M34 50 C 40 46, 46 42, 50 40" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
       <div class="publico-brand">NORDESTINA LOFTS</div>
       <div class="publico-tagline"><span class="pt-line"></span>ICARAIZINHO DE AMONTADA<span class="pt-line"></span></div>
     </div>
@@ -1553,6 +1550,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.16.3"></script>
+<script src="app.js?v=0.16.4"></script>
 </body>
 </html>
