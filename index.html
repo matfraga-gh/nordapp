@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.16.1">
+<link rel="stylesheet" href="styles.css?v=0.16.2">
 </head>
 <body>
 
@@ -63,11 +63,11 @@
       </div>
 
       <label>Tem interesse em contratar serviços adicionais?</label>
-      <div class="ficha-chip-grid">
-        <label title="Café da manhã"><input type="checkbox" id="pbSvCafe"> ☕ CDM</label>
-        <label title="Cozinheira"><input type="checkbox" id="pbSvCoz"> 👩‍🍳 COZ</label>
-        <label title="Early check-in"><input type="checkbox" id="pbSvEci"> 🌅 ECI</label>
-        <label title="Late check-out"><input type="checkbox" id="pbSvLco"> 🌙 LCO</label>
+      <div class="publico-svc-grid">
+        <label><input type="checkbox" id="pbSvCafe"> ☕ Café da manhã</label>
+        <label><input type="checkbox" id="pbSvCoz"> 👩‍🍳 Cozinheira</label>
+        <label><input type="checkbox" id="pbSvEci"> 🌅 Early check-in</label>
+        <label><input type="checkbox" id="pbSvLco"> 🌙 Late check-out</label>
       </div>
       <div class="field-hint">Opcional · podemos ajustar após a cotação</div>
 
@@ -104,7 +104,7 @@
     </div>
     <div class="publico-card">
       <h2>Completar dados</h2>
-      <p class="publico-sub">Reserva <b id="pbcCodigo">—</b> · Falta só mais um passo.</p>
+      <p class="publico-sub">Falta só mais um passo <span id="pbcCodigo" style="display:none"></span></p>
 
       <!-- Resumen da reserva (readonly) -->
       <div class="publico-resumo" id="pbcResumo">—</div>
@@ -1550,6 +1550,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.16.1"></script>
+<script src="app.js?v=0.16.2"></script>
 </body>
 </html>

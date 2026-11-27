@@ -2127,3 +2127,30 @@ a { color: var(--ocean); text-decoration: none; }
   color: var(--sand);
   letter-spacing: -0.2px;
 }
+
+/* Serviços adicionais no form público · texto completo */
+.publico-svc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+.publico-svc-grid label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--white);
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ocean);
+  font-weight: 500;
+}
+.publico-svc-grid label:has(input:checked) {
+  background: var(--sand);
+  border-color: var(--ocean);
+  color: var(--ocean);
+  font-weight: 700;
+}

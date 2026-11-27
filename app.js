@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.16.1 · Formularios publicos refinados · 2026-11-26");
+console.log("NORDAPP v0.16.2 · Serv adic texto + resumo reordenado · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.1 · build 2026-11-26";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.2 · build 2026-11-26";
 }
 
 function renderPainelGrid(){
@@ -5399,6 +5399,14 @@ async function showPublicCompletar(codigo){
   document.getElementById("pbcCodigo").textContent = codigo;
   document.getElementById("btnPbCompletar").dataset.resId = res.id;
 
+  // Helper local · DD/MM/AAAA
+  function fmtDDMM(iso){
+    if(!iso) return "—";
+    var p = iso.split("-");
+    if(p.length < 3) return iso;
+    return p[2] + "/" + p[1] + "/" + p[0];
+  }
+
   // Armar resumen
   var noites = 0;
   if(res.checkin && res.checkout){
@@ -5412,24 +5420,19 @@ async function showPublicCompletar(codigo){
   if(res.adic_early_ci) servs.push("🌅 Early check-in");
   if(res.adic_late_co) servs.push("🌙 Late check-out");
   var total = Number(res.total) || 0;
-  var porNoite = (total > 0 && noites > 0) ? (total / noites) : 0;
 
   var html = '';
+  html += '<div class="r-linha"><span class="r-k">Cód Rva</span><span class="r-v">'+escapeHtml(codigo)+'</span></div>';
   html += '<div class="r-linha"><span class="r-k">Hóspede</span><span class="r-v">'+escapeHtml(res.nome||"—")+'</span></div>';
-  html += '<div class="r-linha"><span class="r-k">Check-in</span><span class="r-v">'+fmtDate(res.checkin)+'</span></div>';
-  html += '<div class="r-linha"><span class="r-k">Check-out</span><span class="r-v">'+fmtDate(res.checkout)+' · '+noites+' noites</span></div>';
+  html += '<div class="r-linha"><span class="r-k">Check In</span><span class="r-v">'+fmtDDMM(res.checkin)+'</span></div>';
+  html += '<div class="r-linha"><span class="r-k">Check Out</span><span class="r-v">'+fmtDDMM(res.checkout)+'</span></div>';
+  html += '<div class="r-linha"><span class="r-k">Noites</span><span class="r-v">'+noites+'</span></div>';
   html += '<div class="r-linha"><span class="r-k">Pax</span><span class="r-v">'+pax+'</span></div>';
-  if(servs.length > 0){
-    html += '<div class="r-linha"><span class="r-k">Serviços</span><span class="r-v" style="font-size:12px">'+servs.join(" · ")+'</span></div>';
-  }
+  html += '<div class="r-linha"><span class="r-k">Serv Adic</span><span class="r-v" style="font-size:12px">'+(servs.length>0 ? servs.join(" · ") : "—")+'</span></div>';
+  html += '<div class="r-divider"></div>';
   if(total > 0){
-    html += '<div class="r-divider"></div>';
-    if(porNoite > 0){
-      html += '<div class="r-linha"><span class="r-k">Por noite</span><span class="r-v">R$ '+porNoite.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div>';
-    }
-    html += '<div class="r-linha"><span class="r-k">Total</span><span class="r-v r-total">R$ '+total.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div>';
+    html += '<div class="r-linha"><span class="r-k">Total da Reserva</span><span class="r-v r-total">R$ '+total.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</span></div>';
   } else {
-    html += '<div class="r-divider"></div>';
     html += '<div class="r-linha" style="font-size:11px;opacity:0.7">Valor cotado pela Pousada pelo mesmo canal.</div>';
   }
 
