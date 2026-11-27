@@ -1977,3 +1977,116 @@ a { color: var(--ocean); text-decoration: none; }
 /* Reduzir padding das secciones */
 .ficha-section { margin-top: 10px; padding-top: 8px; }
 .ficha-sec-title { margin-bottom: 6px; font-size: 11px; }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.16.0 · Vistas públicas · Pousada Nordestina
+   ═════════════════════════════════════════════════════════════════════ */
+.publico-wrap {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a4a6b 0%, #0a2a40 100%);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.publico-header {
+  text-align: center;
+  margin: 24px 0 20px;
+  color: var(--white);
+}
+.publico-brand {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--sand);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+.publico-tagline {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: rgba(244,235,215,0.75);
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+.publico-card {
+  background: var(--sand);
+  color: var(--text);
+  border-radius: var(--radius-lg);
+  padding: 24px 22px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+}
+.publico-card h2 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ocean);
+  margin-bottom: 4px;
+  letter-spacing: -0.3px;
+}
+.publico-sub {
+  font-size: 13px;
+  color: var(--text-soft);
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+.publico-card label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text);
+  opacity: 0.8;
+  margin: 10px 0 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.publico-card input,
+.publico-card select,
+.publico-card textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--sand-dark);
+  background: var(--white);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+}
+.publico-btn {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+}
+.publico-footer {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+.publico-ok {
+  text-align: center;
+}
+.publico-check {
+  font-size: 56px;
+  color: var(--green);
+  margin-bottom: 10px;
+  line-height: 1;
+}
+.publico-codigo {
+  font-family: 'Courier New', monospace;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ocean);
+  background: var(--sand-mid);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  display: inline-block;
+  margin: 10px 0 14px;
+  letter-spacing: 2px;
+}

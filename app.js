@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.15.4 · Ficha compacta + codigo · 2026-11-26");
+console.log("NORDAPP v0.16.0 · Vistas publicas · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.4 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.0 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -5286,6 +5286,136 @@ async function cancelarReserva(){
   if(document.getElementById("viewCalendario").classList.contains("active")) renderCalendario();
 }
 
+// ═════════════════════════════════════════════════════════════════════
+// VISTAS PÚBLICAS · Pre-reserva + Completar dados
+// ═════════════════════════════════════════════════════════════════════
+function showPublicPreReserva(){
+  showView("viewPublicoPreReserva");
+}
+
+function showPublicOk(codigo){
+  document.getElementById("pbCodigoOk").textContent = codigo;
+  showView("viewPublicoOk");
+}
+
+function atualizarNoitesPreReserva(){
+  var ci = document.getElementById("pbCheckin").value;
+  var co = document.getElementById("pbCheckout").value;
+  if(ci && co){
+    var d1 = new Date(ci), d2 = new Date(co);
+    var nts = Math.round((d2 - d1) / 86400000);
+    if(nts > 0){
+      document.getElementById("pbNoites").textContent = nts + " noite" + (nts !== 1 ? "s" : "");
+    } else {
+      document.getElementById("pbNoites").textContent = "Check-out deve ser depois do check-in";
+    }
+  } else {
+    document.getElementById("pbNoites").textContent = "—";
+  }
+}
+
+async function enviarPreReserva(){
+  var nome = document.getElementById("pbNome").value.trim();
+  var ci = document.getElementById("pbCheckin").value;
+  var co = document.getElementById("pbCheckout").value;
+  var ad = parseInt(document.getElementById("pbAdultos").value, 10) || 1;
+  var cr = parseInt(document.getElementById("pbCriancas").value, 10) || 0;
+  var idadesRaw = document.getElementById("pbIdades").value.trim();
+
+  if(!nome){ alert("Preencha seu nome"); return; }
+  if(!ci || !co){ alert("Selecione check-in e check-out"); return; }
+  if(new Date(co) <= new Date(ci)){ alert("Check-out deve ser depois do check-in"); return; }
+  if(cr > 0 && !idadesRaw){ alert("Informe as idades das crianças"); return; }
+
+  var btn = document.getElementById("btnPbEnviar");
+  btn.disabled = true; btn.textContent = "Enviando...";
+
+  var idades = null;
+  if(idadesRaw){
+    idades = idadesRaw.split(',').map(function(s){ return parseInt(s.trim(), 10); }).filter(function(n){ return !isNaN(n); });
+  }
+
+  // Gerar código via RPC
+  var codigo = null;
+  try {
+    var dataRef = new Date().toISOString().slice(0,10);
+    var rpcUrl = SB_URL + "/rest/v1/rpc/nordapp_prox_codigo_reserva";
+    var rpcResp = await fetch(rpcUrl, {
+      method: "POST",
+      headers: Object.assign({}, H),
+      body: JSON.stringify({ data_ref: dataRef })
+    });
+    if(rpcResp.ok){
+      codigo = await rpcResp.json();
+    }
+  } catch(e){ console.error("rpc error", e); }
+
+  var payload = {
+    nome: nome,
+    checkin: ci,
+    checkout: co,
+    adultos: ad,
+    criancas: cr,
+    idades_criancas: idades,
+    status: 'pre_reserva',
+    canal: 'Web pré-reserva',
+    data_reserva: new Date().toISOString().slice(0,10),
+    codigo_reserva: codigo
+  };
+
+  var r = await api("reservas", "POST", payload);
+  btn.disabled = false; btn.textContent = "Enviar pré-reserva";
+  if(!r){ alert("Erro ao enviar. Tente novamente."); return; }
+  var created = Array.isArray(r) ? r[0] : r;
+  var codigoFinal = created.codigo_reserva || ("NR-" + created.id);
+  showPublicOk(codigoFinal);
+}
+
+async function showPublicCompletar(codigo){
+  // Buscar reserva pelo código
+  var r = await api("reservas?codigo_reserva=eq." + encodeURIComponent(codigo) + "&select=*");
+  if(!r || r.length === 0){
+    document.getElementById("pbcCodigo").textContent = "Reserva não encontrada";
+    showView("viewPublicoCompletar");
+    document.getElementById("btnPbCompletar").disabled = true;
+    return;
+  }
+  document.getElementById("pbcCodigo").textContent = codigo;
+  document.getElementById("btnPbCompletar").dataset.resId = r[0].id;
+  showView("viewPublicoCompletar");
+}
+
+async function enviarCompletarDados(){
+  var btn = document.getElementById("btnPbCompletar");
+  var id = btn.dataset.resId;
+  if(!id){ alert("Reserva não localizada"); return; }
+
+  var doc = document.getElementById("pbcDoc").value.trim();
+  var email = document.getElementById("pbcEmail").value.trim();
+  var whats = document.getElementById("pbcWhats").value.trim();
+  if(!doc){ alert("CPF/Passaporte obrigatório"); return; }
+  if(!email){ alert("Email obrigatório"); return; }
+  if(!whats){ alert("WhatsApp obrigatório"); return; }
+
+  btn.disabled = true; btn.textContent = "Enviando...";
+  var patch = {
+    documento: doc,
+    nacionalidade: document.getElementById("pbcNacio").value.trim() || null,
+    email: email,
+    telefone: whats,
+    adic_cafe: document.getElementById("pbcCafe").checked,
+    adic_cozinheira: document.getElementById("pbcCoz").checked,
+    adic_early_ci: document.getElementById("pbcEci").checked,
+    adic_late_co: document.getElementById("pbcLco").checked,
+    obs_comercial: document.getElementById("pbcObs").value.trim() || null,
+    status: 'aguardando_anticipo'
+  };
+  var r = await api("reservas?id=eq." + id, "PATCH", patch);
+  btn.disabled = false; btn.textContent = "Enviar e aguardar pagamento";
+  if(!r){ alert("Erro ao enviar"); return; }
+  showPublicOk("Dados recebidos");
+}
+
 function init(){
   // Listeners básicos
   document.getElementById("btnLogin").addEventListener("click", doLogin);
@@ -5611,6 +5741,39 @@ function init(){
   var mp = document.getElementById("modalPag");
   if(mp) mp.addEventListener("click", function(e){ if(e.target === mp) closePagamentoModal(); });
 
+  // ─── Vistas públicas (sem login) · routing por hash ───
+  function checkPublicRoute(){
+    var hash = window.location.hash || "";
+    if(hash.indexOf("#reserva") === 0){
+      showPublicPreReserva();
+      return true;
+    }
+    if(hash.indexOf("#completar/") === 0){
+      var codigo = hash.replace("#completar/", "");
+      showPublicCompletar(codigo);
+      return true;
+    }
+    return false;
+  }
+  // Pre-reserva pública
+  var btnPbEnv = document.getElementById("btnPbEnviar");
+  if(btnPbEnv) btnPbEnv.addEventListener("click", enviarPreReserva);
+  var pbCi = document.getElementById("pbCheckin");
+  var pbCo = document.getElementById("pbCheckout");
+  if(pbCi && pbCo){
+    [pbCi, pbCo].forEach(function(e){ e.addEventListener("change", atualizarNoitesPreReserva); });
+  }
+  var pbCrian = document.getElementById("pbCriancas");
+  if(pbCrian) pbCrian.addEventListener("change", function(){
+    document.getElementById("pbIdadesWrap").style.display = Number(pbCrian.value) > 0 ? "block" : "none";
+  });
+  // Completar dados
+  var btnPbCompl = document.getElementById("btnPbCompletar");
+  if(btnPbCompl) btnPbCompl.addEventListener("click", enviarCompletarDados);
+
+  // Check route público primeiro
+  if(checkPublicRoute()) return;
+
   // Session restore
   var savedUser = sessionStorage.getItem("nordapp_user");
   var savedRole = sessionStorage.getItem("nordapp_role");
@@ -5624,6 +5787,9 @@ function init(){
       sessionStorage.removeItem("nordapp_role");
     }
   }
+
+  // Listener para mudanças de hash (navegação pública)
+  window.addEventListener("hashchange", checkPublicRoute);
 
   // Atualiza relógio no painel a cada minuto
   setInterval(function(){

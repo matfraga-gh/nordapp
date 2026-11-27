@@ -8,9 +8,122 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.15.4">
+<link rel="stylesheet" href="styles.css?v=0.16.0">
 </head>
 <body>
+
+<!-- ══ VISTA PÚBLICA · PRE-RESERVA (sem login) ═════════════════════════ -->
+<div id="viewPublicoPreReserva" class="view">
+  <div class="publico-wrap">
+    <div class="publico-header">
+      <div class="publico-brand">POUSADA NORDESTINA</div>
+      <div class="publico-tagline">Icaraí · Ceará · Brasil</div>
+    </div>
+    <div class="publico-card">
+      <h2>Reserve sua estadia</h2>
+      <p class="publico-sub">Preencha os dados básicos. Em instantes retornamos com disponibilidade e valores.</p>
+
+      <label>Nome completo <span class="req">*</span></label>
+      <input type="text" id="pbNome" placeholder="Seu nome">
+
+      <div class="row-2">
+        <div>
+          <label>Check-in <span class="req">*</span></label>
+          <input type="date" id="pbCheckin">
+        </div>
+        <div>
+          <label>Check-out <span class="req">*</span></label>
+          <input type="date" id="pbCheckout">
+        </div>
+      </div>
+      <div id="pbNoites" class="field-hint">—</div>
+
+      <div class="row-2">
+        <div>
+          <label>Adultos <span class="req">*</span></label>
+          <select id="pbAdultos">
+            <option value="1">1</option><option value="2" selected>2</option>
+            <option value="3">3</option><option value="4">4</option>
+            <option value="5">5</option><option value="6">6</option>
+          </select>
+        </div>
+        <div>
+          <label>Crianças (0-12)</label>
+          <select id="pbCriancas">
+            <option value="0">0</option><option value="1">1</option>
+            <option value="2">2</option><option value="3">3</option><option value="4">4</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="pbIdadesWrap" style="display:none">
+        <label>Idades das crianças</label>
+        <input type="text" id="pbIdades" placeholder="Ex: 5, 8">
+        <div class="field-hint">Separar por vírgula</div>
+      </div>
+
+      <button class="btn-primary publico-btn" id="btnPbEnviar">Enviar pré-reserva</button>
+      <div class="publico-footer">Já temos uma pré-reserva? Aguarde nosso retorno pelo mesmo canal (WhatsApp/email).</div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmação de pre-reserva enviada -->
+<div id="viewPublicoOk" class="view">
+  <div class="publico-wrap">
+    <div class="publico-header">
+      <div class="publico-brand">POUSADA NORDESTINA</div>
+      <div class="publico-tagline">Icaraí · Ceará · Brasil</div>
+    </div>
+    <div class="publico-card publico-ok">
+      <div class="publico-check">✓</div>
+      <h2>Recebemos sua pré-reserva</h2>
+      <p>Seu código é:</p>
+      <div class="publico-codigo" id="pbCodigoOk">—</div>
+      <p class="publico-sub">Em breve retornaremos pelo mesmo canal (WhatsApp/email) com a cotação completa.</p>
+      <p class="publico-sub">Obrigado!</p>
+    </div>
+  </div>
+</div>
+
+<!-- Vista pública · Completar dados (após aceitação da cotização) -->
+<div id="viewPublicoCompletar" class="view">
+  <div class="publico-wrap">
+    <div class="publico-header">
+      <div class="publico-brand">POUSADA NORDESTINA</div>
+      <div class="publico-tagline">Ultime sua reserva</div>
+    </div>
+    <div class="publico-card">
+      <h2>Completar dados</h2>
+      <p class="publico-sub">Reserva <b id="pbcCodigo">—</b> · Falta só mais um passo.</p>
+
+      <label>CPF ou Passaporte <span class="req">*</span></label>
+      <input type="text" id="pbcDoc">
+
+      <div class="row-2">
+        <div><label>Nacionalidade</label><input type="text" id="pbcNacio" placeholder="Brasileiro"></div>
+        <div><label>Email <span class="req">*</span></label><input type="email" id="pbcEmail"></div>
+      </div>
+
+      <label>WhatsApp <span class="req">*</span></label>
+      <input type="text" id="pbcWhats" placeholder="+55 11 99999-0000">
+
+      <label>Serviços adicionais (opcional)</label>
+      <div class="ficha-chip-grid">
+        <label><input type="checkbox" id="pbcCafe"> ☕ CDM</label>
+        <label><input type="checkbox" id="pbcCoz"> 👩‍🍳 COZ</label>
+        <label><input type="checkbox" id="pbcEci"> 🌅 ECI</label>
+        <label><input type="checkbox" id="pbcLco"> 🌙 LCO</label>
+      </div>
+
+      <label>Observações / pedidos especiais</label>
+      <textarea id="pbcObs" rows="2" placeholder="Opcional"></textarea>
+
+      <button class="btn-primary publico-btn" id="btnPbCompletar">Enviar e aguardar pagamento</button>
+      <div class="publico-footer">Após enviar, você receberá instruções para o pagamento do antecipado em até 24h.</div>
+    </div>
+  </div>
+</div>
 
 <!-- ══ LOGIN ═══════════════════════════════════════════════════════════ -->
 <div id="viewLogin" class="view active">
@@ -1415,6 +1528,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.15.4"></script>
+<script src="app.js?v=0.16.0"></script>
 </body>
 </html>
