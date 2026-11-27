@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.15.1 · Calendario fix sticky + sem canal · 2026-11-26");
+console.log("NORDAPP v0.15.2 · Ficha hospede · 2026-11-26");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.1 · build 2026-11-24";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.15.2 · build 2026-11-24";
 }
 
 function renderPainelGrid(){
@@ -5013,7 +5013,7 @@ async function renderCalendario(){
                         '<div class="r-meta">' + fmtDate(r.checkin) + '–' + fmtDate(r.checkout) + '</div>';
         bar.title = (r.nome || '—') + ' · ' + fmtDate(r.checkin) + ' até ' + fmtDate(r.checkout) + '\n' + paxTxt + ' · ' + (r.canal || '') + '\nTotal: ' + fmtBRL(r.total);
         bar.addEventListener('click', function(){
-          showToast('Abrir reserva #' + r.id + ' (em breve)');
+          openFichaHospede(r.id);
         });
         el.appendChild(bar);
       });
@@ -5038,6 +5038,237 @@ async function goToCalendario(){
     _calMes = { y: hoje.getFullYear(), m: hoje.getMonth() };
   }
   renderCalendario();
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// FICHA DO HÓSPEDE
+// ═════════════════════════════════════════════════════════════════════
+var _fichaReserva = null;
+
+function fichaStatusLabel(r){
+  var st = (r.status || "").toLowerCase();
+  if(st.indexOf("cancel") >= 0) return { cls:'cancelada', label:'Cancelada' };
+  if(r.data_hora_checkout) return { cls:'check_out', label:'Check-out realizado' };
+  if(r.data_hora_checkin) return { cls:'check_in', label:'Hospedado (check-in OK)' };
+  if(r.pago_saldo && String(r.pago_saldo).trim() !== "") return { cls:'com_pago', label:'Saldo pago' };
+  if(r.pago_anticipo && String(r.pago_anticipo).trim() !== "") return { cls:'confirmada', label:'Antecipado pago' };
+  if(st === 'pre_reserva') return { cls:'pre_reserva', label:'Pré-reserva' };
+  return { cls:'pre_reserva', label:'Sem pagamento' };
+}
+
+async function openFichaHospede(id){
+  var r = (_calReservas || []).find(function(x){ return String(x.id) === String(id); });
+  if(!r){
+    // Fetch individual se não está no cache
+    var full = await api("reservas?id=eq." + id + "&select=*");
+    if(full && full.length > 0) r = full[0];
+  } else {
+    // Pegar dados completos (campos que o calendário não trazia)
+    var full = await api("reservas?id=eq." + id + "&select=*");
+    if(full && full.length > 0) r = full[0];
+  }
+  if(!r){ showToast("Reserva não encontrada"); return; }
+  _fichaReserva = r;
+
+  document.getElementById("fichaTitle").textContent = "Ficha · " + (r.nome || "—");
+
+  // Status badge
+  var stObj = fichaStatusLabel(r);
+  var sb = document.getElementById("fichaStatusBadge");
+  sb.className = "ficha-status " + stObj.cls;
+  sb.textContent = stObj.label;
+  document.getElementById("fichaStatusInfo").textContent = "Código #" + r.id + " · reserva " + (r.data_reserva ? fmtDate(r.data_reserva) : '—');
+
+  // Reserva
+  document.getElementById("fkApto").value = r.apto || "";
+  document.getElementById("fkCodigo").value = "NR-" + String(r.id).padStart(5,"0");
+  document.getElementById("fkCheckin").value = r.checkin || "";
+  document.getElementById("fkCheckout").value = r.checkout || "";
+  document.getElementById("fkCanal").value = r.canal || "";
+  document.getElementById("fkDataReserva").value = r.data_reserva || "";
+
+  // Hóspede
+  document.getElementById("fkNome").value = r.nome || "";
+  document.getElementById("fkDoc").value = r.documento || "";
+  document.getElementById("fkNacio").value = r.nacionalidade || "";
+  document.getElementById("fkEmail").value = r.email || "";
+  document.getElementById("fkTel").value = r.telefone || "";
+
+  // Pax
+  document.getElementById("fkAdultos").value = r.adultos || "";
+  document.getElementById("fkCriancas").value = r.criancas || "";
+  var idades = r.idades_criancas;
+  document.getElementById("fkIdades").value = Array.isArray(idades) ? idades.join(", ") : (idades || "");
+
+  // Serviços
+  document.getElementById("fkSvCafe").checked = !!(r.cafe || r.adic_cafe);
+  document.getElementById("fkSvCozinheira").checked = !!(r.cozinheira || r.adic_cozinheira);
+  document.getElementById("fkSvEarly").checked = !!r.adic_early_ci;
+  document.getElementById("fkSvLate").checked = !!r.adic_late_co;
+  document.getElementById("fkSvCozinheiraV").value = r.svc_cozinheira || "";
+  document.getElementById("fkSvEarlyV").value = r.svc_early_checkin || "";
+  document.getElementById("fkSvLateV").value = r.svc_late_checkout || "";
+  document.getElementById("fkSvOutrosV").value = r.svc_outros_valor || "";
+  document.getElementById("fkSvOutrosDesc").value = r.svc_outros_desc || "";
+
+  // Cotização/Pagamentos
+  document.getElementById("fkTotal").value = r.total || "";
+  document.getElementById("fkDevolucao").value = r.devolucao || "";
+  document.getElementById("fkAnticipo").value = r.anticipo || "";
+  document.getElementById("fkDataAnt").value = r.data_anticipo || "";
+  document.getElementById("fkPagoAnt").value = (r.pago_anticipo || "").toLowerCase();
+  document.getElementById("fkSaldo").value = r.saldo_cobrado || "";
+  document.getElementById("fkDataSaldo").value = r.data_saldo || "";
+  document.getElementById("fkPagoSaldo").value = (r.pago_saldo || "").toLowerCase();
+
+  // Obs
+  document.getElementById("fkObsCom").value = r.obs_comercial || "";
+  document.getElementById("fkObsCi").value = r.obs_checkin || "";
+
+  // Check-in info
+  var ci = document.getElementById("fkCheckinInfo");
+  if(r.data_hora_checkin){
+    ci.className = "ficha-info realizado";
+    ci.innerHTML = "✓ Realizado em " + new Date(r.data_hora_checkin).toLocaleString('pt-BR') + " por " + (r.checkin_por || "—");
+    document.getElementById("btnFazerCheckin").textContent = "Desfazer check-in";
+  } else {
+    ci.className = "ficha-info";
+    ci.textContent = "Ainda não realizado · marcar quando o hóspede chegar";
+    document.getElementById("btnFazerCheckin").textContent = "✓ Marcar check-in realizado";
+  }
+
+  // Check-out info + condições
+  var co = document.getElementById("fkCheckoutInfo");
+  if(r.data_hora_checkout){
+    co.className = "ficha-info realizado";
+    co.innerHTML = "✓ Realizado em " + new Date(r.data_hora_checkout).toLocaleString('pt-BR') + " por " + (r.checkout_por || "—");
+    document.getElementById("btnFazerCheckout").textContent = "Desfazer check-out";
+  } else {
+    co.className = "ficha-info";
+    co.textContent = "Ainda não realizado · marcar quando o hóspede sair";
+    document.getElementById("btnFazerCheckout").textContent = "✓ Marcar check-out realizado";
+  }
+  document.getElementById("fkCoRoupas").checked = !!r.co_roupas;
+  document.getElementById("fkCoEletro").checked = !!r.co_eletro;
+  document.getElementById("fkCoInventario").checked = !!r.co_inventario;
+  document.getElementById("fkCoChave").checked = !!r.co_chave;
+  document.getElementById("fkCoObs").value = r.co_obs || "";
+
+  document.getElementById("modalFicha").classList.add("open");
+}
+
+function closeFichaModal(){
+  document.getElementById("modalFicha").classList.remove("open");
+  _fichaReserva = null;
+}
+
+function _collectFichaPayload(){
+  var idadesRaw = document.getElementById("fkIdades").value.trim();
+  var idades = idadesRaw ? idadesRaw.split(',').map(function(s){ return parseInt(s.trim(),10); }).filter(function(n){return !isNaN(n);}) : null;
+  return {
+    apto: document.getElementById("fkApto").value.trim() || null,
+    checkin: document.getElementById("fkCheckin").value || null,
+    checkout: document.getElementById("fkCheckout").value || null,
+    canal: document.getElementById("fkCanal").value || null,
+    data_reserva: document.getElementById("fkDataReserva").value || null,
+    nome: document.getElementById("fkNome").value.trim() || null,
+    documento: document.getElementById("fkDoc").value.trim() || null,
+    nacionalidade: document.getElementById("fkNacio").value.trim() || null,
+    email: document.getElementById("fkEmail").value.trim() || null,
+    telefone: document.getElementById("fkTel").value.trim() || null,
+    adultos: parseInt(document.getElementById("fkAdultos").value, 10) || null,
+    criancas: parseInt(document.getElementById("fkCriancas").value, 10) || null,
+    idades_criancas: idades,
+    cafe: document.getElementById("fkSvCafe").checked,
+    cozinheira: document.getElementById("fkSvCozinheira").checked,
+    adic_cafe: document.getElementById("fkSvCafe").checked,
+    adic_cozinheira: document.getElementById("fkSvCozinheira").checked,
+    adic_early_ci: document.getElementById("fkSvEarly").checked,
+    adic_late_co: document.getElementById("fkSvLate").checked,
+    svc_cozinheira: parseFloat(document.getElementById("fkSvCozinheiraV").value) || null,
+    svc_early_checkin: parseFloat(document.getElementById("fkSvEarlyV").value) || null,
+    svc_late_checkout: parseFloat(document.getElementById("fkSvLateV").value) || null,
+    svc_outros_valor: parseFloat(document.getElementById("fkSvOutrosV").value) || null,
+    svc_outros_desc: document.getElementById("fkSvOutrosDesc").value.trim() || null,
+    total: parseFloat(document.getElementById("fkTotal").value) || null,
+    devolucao: parseFloat(document.getElementById("fkDevolucao").value) || null,
+    anticipo: parseFloat(document.getElementById("fkAnticipo").value) || null,
+    data_anticipo: document.getElementById("fkDataAnt").value || null,
+    pago_anticipo: document.getElementById("fkPagoAnt").value || null,
+    saldo_cobrado: parseFloat(document.getElementById("fkSaldo").value) || null,
+    data_saldo: document.getElementById("fkDataSaldo").value || null,
+    pago_saldo: document.getElementById("fkPagoSaldo").value || null,
+    obs_comercial: document.getElementById("fkObsCom").value.trim() || null,
+    obs_checkin: document.getElementById("fkObsCi").value.trim() || null,
+    co_roupas: document.getElementById("fkCoRoupas").checked,
+    co_eletro: document.getElementById("fkCoEletro").checked,
+    co_inventario: document.getElementById("fkCoInventario").checked,
+    co_chave: document.getElementById("fkCoChave").checked,
+    co_obs: document.getElementById("fkCoObs").value.trim() || null
+  };
+}
+
+async function saveFicha(){
+  if(!_fichaReserva){ showToast("Sem reserva ativa"); return; }
+  var p = _collectFichaPayload();
+  var r = await api("reservas?id=eq." + _fichaReserva.id, "PATCH", p);
+  if(!r){ showToast("Erro ao salvar"); return; }
+  showToast("Ficha atualizada ✓");
+  closeFichaModal();
+  if(document.getElementById("viewCalendario").classList.contains("active")) renderCalendario();
+}
+
+async function fazerCheckin(){
+  if(!_fichaReserva) return;
+  var user = currentUser.username || "system";
+  var patch;
+  if(_fichaReserva.data_hora_checkin){
+    if(!confirm("Desfazer check-in registrado?")) return;
+    patch = { data_hora_checkin: null, checkin_por: null };
+  } else {
+    patch = { data_hora_checkin: new Date().toISOString(), checkin_por: user };
+  }
+  var r = await api("reservas?id=eq." + _fichaReserva.id, "PATCH", patch);
+  if(!r){ showToast("Erro"); return; }
+  showToast(patch.data_hora_checkin ? "Check-in registrado ✓" : "Check-in desfeito");
+  openFichaHospede(_fichaReserva.id);
+  if(document.getElementById("viewCalendario").classList.contains("active")) renderCalendario();
+}
+
+async function fazerCheckout(){
+  if(!_fichaReserva) return;
+  var user = currentUser.username || "system";
+  var patch;
+  if(_fichaReserva.data_hora_checkout){
+    if(!confirm("Desfazer check-out registrado?")) return;
+    patch = { data_hora_checkout: null, checkout_por: null };
+  } else {
+    // Salvar também as condições de saída
+    patch = {
+      data_hora_checkout: new Date().toISOString(),
+      checkout_por: user,
+      co_roupas: document.getElementById("fkCoRoupas").checked,
+      co_eletro: document.getElementById("fkCoEletro").checked,
+      co_inventario: document.getElementById("fkCoInventario").checked,
+      co_chave: document.getElementById("fkCoChave").checked,
+      co_obs: document.getElementById("fkCoObs").value.trim() || null
+    };
+  }
+  var r = await api("reservas?id=eq." + _fichaReserva.id, "PATCH", patch);
+  if(!r){ showToast("Erro"); return; }
+  showToast(patch.data_hora_checkout ? "Check-out registrado ✓" : "Check-out desfeito");
+  openFichaHospede(_fichaReserva.id);
+  if(document.getElementById("viewCalendario").classList.contains("active")) renderCalendario();
+}
+
+async function cancelarReserva(){
+  if(!_fichaReserva) return;
+  if(!confirm("Cancelar esta reserva?")) return;
+  var r = await api("reservas?id=eq." + _fichaReserva.id, "PATCH", { status: 'cancelada' });
+  if(!r){ showToast("Erro"); return; }
+  showToast("Reserva cancelada");
+  closeFichaModal();
+  if(document.getElementById("viewCalendario").classList.contains("active")) renderCalendario();
 }
 
 function init(){
@@ -5160,6 +5391,20 @@ function init(){
   });
   var btnExpP = document.getElementById("btnExportPagamentos");
   if(btnExpP) btnExpP.addEventListener("click", exportPagamentosExcel);
+
+  // ─── Ficha hóspede ───
+  var btnCloseFi = document.getElementById("btnCloseFicha");
+  if(btnCloseFi) btnCloseFi.addEventListener("click", closeFichaModal);
+  var btnSaveFi = document.getElementById("btnSaveFicha");
+  if(btnSaveFi) btnSaveFi.addEventListener("click", saveFicha);
+  var btnCi = document.getElementById("btnFazerCheckin");
+  if(btnCi) btnCi.addEventListener("click", fazerCheckin);
+  var btnCo = document.getElementById("btnFazerCheckout");
+  if(btnCo) btnCo.addEventListener("click", fazerCheckout);
+  var btnDelR = document.getElementById("btnDeleteReserva");
+  if(btnDelR) btnDelR.addEventListener("click", cancelarReserva);
+  var mFi = document.getElementById("modalFicha");
+  if(mFi) mFi.addEventListener("click", function(e){ if(e.target === mFi) closeFichaModal(); });
 
   // ─── Calendário ───
   var btnCalPrev = document.getElementById("calMesPrev");

@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.15.1">
+<link rel="stylesheet" href="styles.css?v=0.15.2">
 </head>
 <body>
 
@@ -493,6 +493,187 @@
     <div class="modal-footer">
       <button class="btn-secondary" id="btnDeleteCat" style="display:none">Apagar</button>
       <button class="btn-primary" id="btnSaveCat">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Ficha do Hóspede -->
+<div class="overlay" id="modalFicha">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <span class="modal-title" id="fichaTitle">Ficha do hóspede</span>
+      <button class="btn-x" id="btnCloseFicha">×</button>
+    </div>
+
+    <div id="fichaBody">
+      <!-- Status + ações rápidas -->
+      <div class="ficha-status-row">
+        <div id="fichaStatusBadge" class="ficha-status">—</div>
+        <div id="fichaStatusInfo" class="ficha-status-info">—</div>
+      </div>
+
+      <!-- Seção 1 · Reserva -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">📌 Reserva</div>
+        <div class="row-2">
+          <div>
+            <label>Apto</label>
+            <input type="text" id="fkApto">
+          </div>
+          <div>
+            <label>Código</label>
+            <input type="text" id="fkCodigo" readonly>
+          </div>
+        </div>
+        <div class="row-2">
+          <div><label>Check-in</label><input type="date" id="fkCheckin"></div>
+          <div><label>Check-out</label><input type="date" id="fkCheckout"></div>
+        </div>
+        <div class="row-2">
+          <div><label>Canal</label>
+            <select id="fkCanal">
+              <option value="">—</option>
+              <option>WhatsApp</option>
+              <option>Direta</option>
+              <option>Booking.com</option>
+              <option>Airbnb</option>
+              <option>Walk-in</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div><label>Data da reserva</label><input type="date" id="fkDataReserva"></div>
+        </div>
+      </div>
+
+      <!-- Seção 2 · Hóspede -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">👤 Hóspede titular</div>
+        <label>Nome completo <span class="req">*</span></label>
+        <input type="text" id="fkNome">
+        <div class="row-2">
+          <div><label>CPF / Passaporte</label><input type="text" id="fkDoc"></div>
+          <div><label>Nacionalidade</label><input type="text" id="fkNacio"></div>
+        </div>
+        <div class="row-2">
+          <div><label>Email</label><input type="email" id="fkEmail"></div>
+          <div><label>WhatsApp / telefone</label><input type="text" id="fkTel"></div>
+        </div>
+      </div>
+
+      <!-- Seção 3 · Pax -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">👥 Pax</div>
+        <div class="row-2">
+          <div><label>Adultos</label><input type="number" id="fkAdultos" min="0"></div>
+          <div><label>Crianças</label><input type="number" id="fkCriancas" min="0"></div>
+        </div>
+        <label>Idades crianças (ex: 5, 8, 12)</label>
+        <input type="text" id="fkIdades" placeholder="separar por vírgula">
+      </div>
+
+      <!-- Seção 4 · Serviços adicionais -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">🧰 Serviços adicionais</div>
+        <div class="ficha-check-grid">
+          <label><input type="checkbox" id="fkSvCafe"> Café da manhã</label>
+          <label><input type="checkbox" id="fkSvCozinheira"> Cozinheira</label>
+          <label><input type="checkbox" id="fkSvEarly"> Early check-in</label>
+          <label><input type="checkbox" id="fkSvLate"> Late check-out</label>
+        </div>
+        <div class="row-2">
+          <div><label>Valor cozinheira (R$)</label><input type="number" id="fkSvCozinheiraV" step="0.01"></div>
+          <div><label>Valor early CI (R$)</label><input type="number" id="fkSvEarlyV" step="0.01"></div>
+        </div>
+        <div class="row-2">
+          <div><label>Valor late CO (R$)</label><input type="number" id="fkSvLateV" step="0.01"></div>
+          <div><label>Outros (valor R$)</label><input type="number" id="fkSvOutrosV" step="0.01"></div>
+        </div>
+        <label>Outros · descrição</label>
+        <input type="text" id="fkSvOutrosDesc" placeholder="ex: passeio de barco">
+      </div>
+
+      <!-- Seção 5 · Cotização + Pagamentos -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">💰 Cotização e pagamentos</div>
+        <div class="row-2">
+          <div><label>Total (R$)</label><input type="number" id="fkTotal" step="0.01"></div>
+          <div><label>Devolução</label><input type="number" id="fkDevolucao" step="0.01"></div>
+        </div>
+        <div class="ficha-pagamento-bloco">
+          <div class="ficha-sub-title">Antecipado</div>
+          <div class="row-2">
+            <div><label>Valor</label><input type="number" id="fkAnticipo" step="0.01"></div>
+            <div><label>Data</label><input type="date" id="fkDataAnt"></div>
+          </div>
+          <label>Meio</label>
+          <select id="fkPagoAnt">
+            <option value="">—</option>
+            <option value="inter_pix">Inter LG · Pix</option>
+            <option value="bradesco_pix">Bradesco LG · Pix</option>
+            <option value="cripto">Cripto</option>
+            <option value="dinheiro_brl">Dinheiro R$</option>
+            <option value="dinheiro_usd">Dinheiro US$</option>
+            <option value="dinheiro_ars">Dinheiro AR$</option>
+          </select>
+        </div>
+        <div class="ficha-pagamento-bloco">
+          <div class="ficha-sub-title">Saldo</div>
+          <div class="row-2">
+            <div><label>Valor</label><input type="number" id="fkSaldo" step="0.01"></div>
+            <div><label>Data</label><input type="date" id="fkDataSaldo"></div>
+          </div>
+          <label>Meio</label>
+          <select id="fkPagoSaldo">
+            <option value="">—</option>
+            <option value="inter_pix">Inter LG · Pix</option>
+            <option value="bradesco_pix">Bradesco LG · Pix</option>
+            <option value="cripto">Cripto</option>
+            <option value="dinheiro_brl">Dinheiro R$</option>
+            <option value="dinheiro_usd">Dinheiro US$</option>
+            <option value="dinheiro_ars">Dinheiro AR$</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Seção 6 · Observações -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">📝 Observações</div>
+        <label>Observação comercial</label>
+        <textarea id="fkObsCom" rows="2"></textarea>
+        <label>Observação check-in</label>
+        <textarea id="fkObsCi" rows="2"></textarea>
+      </div>
+
+      <!-- Seção 7 · Check-in -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">🏨 Check-in</div>
+        <div id="fkCheckinInfo" class="ficha-info">Ainda não realizado</div>
+        <div class="ficha-footer-row">
+          <button class="btn-primary" id="btnFazerCheckin">✓ Marcar check-in realizado</button>
+        </div>
+      </div>
+
+      <!-- Seção 8 · Check-out -->
+      <div class="ficha-section">
+        <div class="ficha-sec-title">🚪 Check-out</div>
+        <div id="fkCheckoutInfo" class="ficha-info">Ainda não realizado</div>
+        <div class="ficha-check-grid">
+          <label><input type="checkbox" id="fkCoRoupas"> Roupas de cama OK</label>
+          <label><input type="checkbox" id="fkCoEletro"> Eletro OK</label>
+          <label><input type="checkbox" id="fkCoInventario"> Inventário OK</label>
+          <label><input type="checkbox" id="fkCoChave"> Chaves devolvidas</label>
+        </div>
+        <label>Observação check-out</label>
+        <textarea id="fkCoObs" rows="2" placeholder="Danos, pendentes, notas..."></textarea>
+        <div class="ficha-footer-row">
+          <button class="btn-primary" id="btnFazerCheckout">✓ Marcar check-out realizado</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" id="btnDeleteReserva" style="display:none">Cancelar reserva</button>
+      <button class="btn-primary" id="btnSaveFicha">Salvar</button>
     </div>
   </div>
 </div>
@@ -1234,6 +1415,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.15.1"></script>
+<script src="app.js?v=0.15.2"></script>
 </body>
 </html>

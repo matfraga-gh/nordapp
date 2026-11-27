@@ -1859,3 +1859,91 @@ a { color: var(--ocean); text-decoration: none; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   v0.15.2 · Ficha do hóspede
+   ═════════════════════════════════════════════════════════════════════ */
+.ficha-section {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sand-mid);
+}
+.ficha-sec-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--ocean);
+  margin-bottom: 8px;
+}
+.ficha-sub-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-soft);
+  margin: 8px 0 4px;
+}
+.ficha-pagamento-bloco {
+  background: var(--sand-mid);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-top: 8px;
+}
+.ficha-check-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 6px 0;
+}
+.ficha-check-grid label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500; color: var(--text);
+  padding: 4px 6px;
+  margin: 0 !important;
+}
+.ficha-info {
+  background: var(--sand-mid);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text);
+  margin: 6px 0 8px;
+}
+.ficha-info.realizado {
+  background: var(--green-bg);
+  color: #2a5a3a;
+  font-weight: 600;
+}
+.ficha-footer-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.ficha-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--sand);
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+}
+.ficha-status {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: var(--ocean-light);
+  color: var(--ocean);
+}
+.ficha-status.pre_reserva { background: #ddd; color: #555; }
+.ficha-status.confirmada { background: var(--yellow-bg); color: #8a6a1f; }
+.ficha-status.com_pago { background: var(--green-bg); color: #3a5f44; }
+.ficha-status.check_in { background: var(--ocean); color: var(--white); }
+.ficha-status.check_out { background: #888; color: var(--white); }
+.ficha-status.cancelada { background: var(--red-bg); color: #7a3a3a; }
+.ficha-status-info {
+  font-size: 11px;
+  color: var(--text-soft);
+}
