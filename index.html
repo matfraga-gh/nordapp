@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.17.1">
+<link rel="stylesheet" href="styles.css?v=0.17.3">
 </head>
 <body>
 
@@ -653,7 +653,7 @@
         <div class="row-2">
           <div>
             <label>Apto</label>
-            <input type="text" id="fkApto">
+            <select id="fkApto"><option value="">—</option></select>
           </div>
           <div>
             <label>Código</label>
@@ -1646,6 +1646,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.17.1"></script>
+<script src="app.js?v=0.17.3"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.17.1 · Bandeja em creme · 2026-11-28");
+console.log("NORDAPP v0.17.3 · Apto select + refresh bandeja · 2026-11-28");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.17.1 · build 2026-11-28";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.17.3 · build 2026-11-28";
 }
 
 function renderPainelGrid(){
@@ -5186,7 +5186,7 @@ function bandRow(res){
   }
   acoes += '<button class="btn-ghost btn-sm" data-ficha="'+res.id+'">📋 Ficha</button>';
   if(tel){
-    acoes += '<button class="btn-ghost btn-sm" data-wa="'+escapeHtml(tel)+'" title="WhatsApp">💬</button>';
+    acoes += '<button class="btn-wa btn-sm" data-wa="'+escapeHtml(tel)+'" title="Abrir WhatsApp"><svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M19.1 17.3c-.3-.1-1.7-.8-2-.9-.3-.1-.5-.1-.7.1-.2.3-.8.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.3-1.5-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.7-1-2.3-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.2 3.4 5.3 4.7.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.7-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM16 3C8.8 3 3 8.8 3 16c0 2.3.6 4.4 1.7 6.3L3 29l6.8-1.8c1.8 1 3.9 1.6 6.1 1.6h.1C23.2 28.8 29 23 29 15.8 29 8.8 23.2 3 16 3zm0 23.8c-1.9 0-3.8-.5-5.4-1.5l-.4-.2-4 1.1 1.1-3.9-.3-.4C6 20.3 5.4 18.2 5.4 16c0-5.9 4.8-10.6 10.6-10.6 2.8 0 5.5 1.1 7.5 3.1s3.1 4.7 3.1 7.5c0 5.9-4.7 10.8-10.6 10.8z"/></svg></button>';
   }
 
   return '<div class="band-row">'+
@@ -5388,7 +5388,15 @@ async function openFichaHospede(id){
   }
 
   // Reserva
-  document.getElementById("fkApto").value = r.apto || "";
+  // Popular select Apto com unidades canônicas
+  var selApto = document.getElementById("fkApto");
+  selApto.innerHTML = '<option value="">—</option>' +
+    (UNIDADES_CANONICAS || []).map(function(u){ return '<option value="'+escapeHtml(u)+'">'+escapeHtml(u)+'</option>'; }).join("");
+  // Se o valor atual não está na lista, adicionar para preservar
+  if(r.apto && !(UNIDADES_CANONICAS || []).includes(r.apto)){
+    selApto.innerHTML += '<option value="'+escapeHtml(r.apto)+'">'+escapeHtml(r.apto)+' (não canônico)</option>';
+  }
+  selApto.value = r.apto || "";
   document.getElementById("fkCodigo").value = r.codigo_reserva || ("NR-" + String(r.id).padStart(5,"0"));
   document.getElementById("fkCheckin").value = r.checkin || "";
   document.getElementById("fkCheckout").value = r.checkout || "";
@@ -5524,6 +5532,7 @@ async function saveFicha(){
   showToast("Ficha atualizada ✓");
   closeFichaModal();
   if(document.getElementById("viewCalendario").classList.contains("active")) renderCalendario();
+  if(document.getElementById("viewBandejaReservas").classList.contains("active")) renderBandejaReservas();
 }
 
 async function fazerCheckin(){
