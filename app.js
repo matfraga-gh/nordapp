@@ -3,7 +3,7 @@
 (function(){
 'use strict';
 
-console.log("NORDAPP v0.16.4 · Sem isologo + svc justif esq · 2026-11-26");
+console.log("NORDAPP v0.17.0 · Bandeja de reservas + Pagamento recebido · 2026-11-27");
 
 // ── SUPABASE (mesma BD da app atual) ──────────────────────────────────
 var SB_URL = "https://cmtbmpzklorhmgkwvcfa.supabase.co";
@@ -230,7 +230,7 @@ function updatePainelHeader(){
     document.getElementById("userPillRole").textContent = (ROLE_LABELS[currentRole] || currentRole).replace(/^[^\s]+\s/, "");
   }
   // Build stamp
-  document.getElementById("buildStamp").textContent = "NORDAPP v0.16.4 · build 2026-11-26";
+  document.getElementById("buildStamp").textContent = "NORDAPP v0.17.0 · build 2026-11-27";
 }
 
 function renderPainelGrid(){
@@ -272,6 +272,7 @@ var HUB_CONFIG = {
   hubVendas: {
     view: "viewHubVendas",
     tiles: [
+      { id:"bandeja", icon:"🔔", title:"Bandeja", sub:"Pre-reservas e pendentes", badge:"bandejaBadge" },
       { id:"reservas", icon:"📋", title:"Reservas", sub:"Lista do mês" },
       { id:"disponibilidade", icon:"📅", title:"Disponibilidade", sub:"Calendário" },
       { id:"hospedes", icon:"👥", title:"Hóspedes", sub:"CRM e histórico" },
@@ -353,6 +354,7 @@ function goToModule(moduleId, parentHubId, title){
   if(moduleId === "painel_resultados"){ goToDRE(); return; }
   if(moduleId === "ingresos"){ goToIngresos(); return; }
   if(moduleId === "disponibilidade"){ goToCalendario(); return; }
+  if(moduleId === "bandeja"){ goToBandejaReservas(); return; }
   if(moduleId === "caixa"){ goToCaixa(); return; }
   if(moduleId === "egresos"){ goToEgresos(); return; }
   if(moduleId === "retiros_socios"){ goToRetiros(); return; }
@@ -5056,6 +5058,287 @@ async function goToCalendario(){
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// BANDEJA DE RESERVAS · pendentes de ação
+// ═════════════════════════════════════════════════════════════════════
+var _bandejaData = [];
+var _bandejaTimer = null;
+
+async function goToBandejaReservas(){
+  showView("viewBandejaReservas");
+  await renderBandejaReservas();
+  // Auto-refresh timer cada 60s
+  if(_bandejaTimer) clearInterval(_bandejaTimer);
+  _bandejaTimer = setInterval(function(){
+    if(document.getElementById("viewBandejaReservas").classList.contains("active")){
+      renderBandejaReservas();
+    } else {
+      clearInterval(_bandejaTimer); _bandejaTimer = null;
+    }
+  }, 60000);
+}
+
+async function renderBandejaReservas(){
+  var body = document.getElementById("bandejaBody");
+  var r = await api("reservas?select=id,codigo_reserva,nome,apto,checkin,checkout,adultos,criancas,total,anticipo,status,canal,telefone,email,obs_comercial,adic_cafe,adic_cozinheira,adic_early_ci,adic_late_co,aguardando_desde,created_at&status=in.(pre_reserva,em_cotizacao,cotizacao_enviada,aceita_pendente_dados,aguardando_anticipo)&order=created_at.desc");
+  if(!r){ body.innerHTML = '<div class="empty">Erro ao carregar</div>'; return; }
+  _bandejaData = r;
+
+  // Classificar
+  var now = new Date();
+  var grupos = {
+    urgentes: [],  // aguardando_anticipo com < 6h restantes
+    aguardando: [], // aguardando_anticipo com > 6h
+    cotizacao: [], // em_cotizacao + cotizacao_enviada + aceita_pendente_dados
+    pre: []        // pre_reserva
+  };
+
+  r.forEach(function(res){
+    if(res.status === 'aguardando_anticipo'){
+      var desde = res.aguardando_desde ? new Date(res.aguardando_desde) : new Date(res.created_at);
+      var expira = new Date(desde.getTime() + 24*60*60*1000);
+      var horasRest = (expira - now) / (60*60*1000);
+      res._horasRest = horasRest;
+      res._expira = expira;
+      if(horasRest < 6) grupos.urgentes.push(res);
+      else grupos.aguardando.push(res);
+    } else if(res.status === 'pre_reserva'){
+      grupos.pre.push(res);
+    } else {
+      grupos.cotizacao.push(res);
+    }
+  });
+
+  // KPIs
+  document.getElementById("bandKpiUrg").textContent = grupos.urgentes.length;
+  document.getElementById("bandKpiAnt").textContent = grupos.aguardando.length + grupos.urgentes.length;
+  document.getElementById("bandKpiCot").textContent = grupos.cotizacao.length;
+  document.getElementById("bandKpiPre").textContent = grupos.pre.length;
+
+  // Render sections
+  var html = '';
+  if(grupos.urgentes.length > 0){
+    html += '<div class="band-section band-sec-urg">';
+    html += '<h3>⚠️ Urgentes · menos de 6h para expirar ('+grupos.urgentes.length+')</h3>';
+    html += grupos.urgentes.map(bandRow).join("");
+    html += '</div>';
+  }
+  if(grupos.aguardando.length > 0){
+    html += '<div class="band-section band-sec-ant">';
+    html += '<h3>⏳ Aguardando antecipo ('+grupos.aguardando.length+')</h3>';
+    html += grupos.aguardando.map(bandRow).join("");
+    html += '</div>';
+  }
+  if(grupos.cotizacao.length > 0){
+    html += '<div class="band-section band-sec-cot">';
+    html += '<h3>💬 Em cotização ('+grupos.cotizacao.length+')</h3>';
+    html += grupos.cotizacao.map(bandRow).join("");
+    html += '</div>';
+  }
+  if(grupos.pre.length > 0){
+    html += '<div class="band-section band-sec-pre">';
+    html += '<h3>🆕 Pré-reservas novas ('+grupos.pre.length+')</h3>';
+    html += grupos.pre.map(bandRow).join("");
+    html += '</div>';
+  }
+  if(html === ''){
+    html = '<div class="empty" style="padding:40px;text-align:center;color:var(--muted)">✓ Nada pendente — tudo em dia!</div>';
+  }
+  body.innerHTML = html;
+
+  // Wire buttons
+  body.querySelectorAll("[data-ficha]").forEach(function(b){
+    b.onclick = function(){ openFichaHospede(b.dataset.ficha); };
+  });
+  body.querySelectorAll("[data-pagar]").forEach(function(b){
+    b.onclick = function(){ openPagamentoReservaModal(b.dataset.pagar, 'antecipo'); };
+  });
+  body.querySelectorAll("[data-wa]").forEach(function(b){
+    b.onclick = function(){
+      var fone = b.dataset.wa.replace(/\D/g, "");
+      window.open("https://wa.me/" + fone, "_blank");
+    };
+  });
+}
+
+function bandRow(res){
+  var pax = (res.adultos||0) + "A" + (res.criancas>0 ? "+"+res.criancas+"C" : "");
+  var ci = fmtDate(res.checkin);
+  var co = fmtDate(res.checkout);
+  var tel = res.telefone || "";
+  var canalBadge = res.canal ? '<span class="band-canal">'+escapeHtml(res.canal)+'</span>' : '';
+  var totalTxt = (Number(res.total)>0) ? ('R$ '+Number(res.total).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})) : '<em>— sem cotização</em>';
+  var antTxt = (Number(res.anticipo)>0) ? ('R$ '+Number(res.anticipo).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})) : '—';
+  var codigo = res.codigo_reserva || res.id.slice(0,8);
+
+  // Timer
+  var timerHtml = '';
+  if(res.status === 'aguardando_anticipo' && typeof res._horasRest === 'number'){
+    var h = res._horasRest;
+    var cls = h < 2 ? 'timer-crit' : (h < 6 ? 'timer-warn' : 'timer-ok');
+    var txt = h < 0 ? 'EXPIRADO' : (h < 1 ? Math.round(h*60)+' min' : Math.floor(h)+'h '+Math.round((h%1)*60)+'min');
+    timerHtml = '<div class="band-timer '+cls+'">⏱️ '+txt+'</div>';
+  }
+
+  // Botões por estado
+  var acoes = '';
+  if(res.status === 'aguardando_anticipo'){
+    acoes += '<button class="btn-primary btn-sm" data-pagar="'+res.id+'">💰 Registrar antecipo</button>';
+  }
+  acoes += '<button class="btn-ghost btn-sm" data-ficha="'+res.id+'">📋 Ficha</button>';
+  if(tel){
+    acoes += '<button class="btn-ghost btn-sm" data-wa="'+escapeHtml(tel)+'" title="WhatsApp">💬</button>';
+  }
+
+  return '<div class="band-row">'+
+    '<div class="band-r-main">'+
+      '<div class="band-r-top">'+
+        '<span class="band-cod">'+escapeHtml(codigo)+'</span>'+
+        '<span class="band-nome">'+escapeHtml(res.nome||"—")+'</span>'+
+        canalBadge+
+        timerHtml+
+      '</div>'+
+      '<div class="band-r-info">'+
+        '<span>📅 '+ci+' → '+co+'</span>'+
+        '<span>👥 '+pax+'</span>'+
+        '<span>🏠 '+(res.apto||"—")+'</span>'+
+        '<span>💵 Total '+totalTxt+' · Antecipo '+antTxt+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<div class="band-r-acoes">'+acoes+'</div>'+
+  '</div>';
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// PAGAMENTO DE RESERVA · registro + impacto em caixa
+// ═════════════════════════════════════════════════════════════════════
+var _pagRsvAtual = null;
+
+async function openPagamentoReservaModal(reservaId, tipoDefault){
+  var r = await api("reservas?id=eq." + reservaId + "&select=*");
+  if(!r || r.length === 0){ alert("Reserva não encontrada"); return; }
+  var res = r[0];
+  _pagRsvAtual = res;
+
+  // Buscar pagamentos já registrados
+  var pags = await api("pagamentos_reserva?reserva_id=eq." + reservaId + "&anulado=is.false&select=*");
+  pags = pags || [];
+  var totalPago = pags.reduce(function(s,p){ return s + (Number(p.valor_brl||p.valor)||0); }, 0);
+  var saldo = Number(res.total||0) - totalPago;
+
+  var pax = (res.adultos||0)+"A"+(res.criancas>0?"+"+res.criancas+"C":"");
+  document.getElementById("pagRsvTitle").textContent = "Registrar pagamento · " + (res.codigo_reserva || "");
+  document.getElementById("pagRsvReservaInfo").innerHTML =
+    '<div class="pri-row"><b>'+escapeHtml(res.nome||"—")+'</b> · '+pax+' · '+fmtDate(res.checkin)+' → '+fmtDate(res.checkout)+'</div>'+
+    '<div class="pri-row">Total: <b>R$ '+Number(res.total||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</b> · Já pago: R$ '+totalPago.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+' · Saldo: <b>R$ '+saldo.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+'</b></div>';
+
+  document.getElementById("pagRsvTipo").value = tipoDefault || 'antecipo';
+  document.getElementById("pagRsvData").value = new Date().toISOString().slice(0,10);
+  document.getElementById("pagRsvMeio").value = 'inter_pix';
+  document.getElementById("pagRsvValor").value = (tipoDefault === 'antecipo' && Number(res.anticipo)>0)
+    ? res.anticipo
+    : (tipoDefault === 'saldo' ? Math.max(saldo,0).toFixed(2) : '');
+  document.getElementById("pagRsvNroOp").value = "";
+  document.getElementById("pagRsvObs").value = "";
+  document.getElementById("pagRsvCambio").value = "";
+  document.getElementById("pagRsvValorBRL").value = "";
+  pagRsvUpdateMoeda();
+  pagRsvUpdateImpacto();
+
+  document.getElementById("modalPagamentoReserva").classList.add("open");
+}
+
+function pagRsvUpdateMoeda(){
+  var meio = document.getElementById("pagRsvMeio").value;
+  var isUsd = meio === 'dinheiro_usd';
+  var isArs = meio === 'dinheiro_ars';
+  document.getElementById("pagRsvCambioRow").style.display = (isUsd || isArs) ? "" : "none";
+}
+
+function pagRsvCalcBRL(){
+  var v = Number(document.getElementById("pagRsvValor").value)||0;
+  var c = Number(document.getElementById("pagRsvCambio").value)||0;
+  var brl = v * c;
+  document.getElementById("pagRsvValorBRL").value = brl > 0 ? brl.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}) : "";
+  pagRsvUpdateImpacto();
+}
+
+function pagRsvUpdateImpacto(){
+  var meio = document.getElementById("pagRsvMeio").value;
+  var tipo = document.getElementById("pagRsvTipo").value;
+  var v = Number(document.getElementById("pagRsvValor").value)||0;
+  var meioLabel = (typeof MEIO_LABEL === 'object' && MEIO_LABEL[meio]) ? MEIO_LABEL[meio] : meio;
+  var statusAfter = (tipo === 'antecipo') ? 'confirmada' : (tipo === 'saldo' ? 'saldo_pago' : '');
+  var html = '<b>Impacto:</b> ';
+  if(v > 0){
+    html += 'Soma R$ '+v.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+' ao saldo de <b>'+escapeHtml(meioLabel)+'</b>';
+    if(statusAfter) html += ' · Status da reserva → <b>'+statusAfter+'</b>';
+  } else {
+    html += '<em>informe um valor</em>';
+  }
+  document.getElementById("pagRsvImpacto").innerHTML = html;
+}
+
+async function salvarPagamentoReserva(){
+  if(!_pagRsvAtual){ return; }
+  var tipo = document.getElementById("pagRsvTipo").value;
+  var data = document.getElementById("pagRsvData").value;
+  var meio = document.getElementById("pagRsvMeio").value;
+  var valor = Number(document.getElementById("pagRsvValor").value);
+  var cambio = Number(document.getElementById("pagRsvCambio").value)||null;
+  var moeda = (meio === 'dinheiro_usd') ? 'USD' : (meio === 'dinheiro_ars' ? 'ARS' : 'BRL');
+  var valor_brl = (moeda === 'BRL') ? valor : (valor * (cambio||0));
+
+  if(!data || !valor || valor <= 0){ alert("Data e valor obrigatórios"); return; }
+  if(moeda !== 'BRL' && (!cambio || cambio <= 0)){ alert("Informe o câmbio"); return; }
+
+  var btn = document.getElementById("btnSalvarPagRsv");
+  btn.disabled = true; btn.textContent = "Salvando...";
+
+  var payload = {
+    reserva_id: _pagRsvAtual.id,
+    tipo: tipo,
+    data: data,
+    meio: meio,
+    moeda: moeda,
+    valor: valor,
+    valor_brl: valor_brl,
+    cambio: cambio,
+    nro_operacao: document.getElementById("pagRsvNroOp").value || null,
+    obs: document.getElementById("pagRsvObs").value || null,
+    registrado_por: (window._session && window._session.user && window._session.user.email) || 'app'
+  };
+
+  var r = await api("pagamentos_reserva", "POST", payload);
+  if(!r){ alert("Erro ao salvar pagamento"); btn.disabled = false; btn.textContent = "Registrar pagamento e confirmar reserva"; return; }
+
+  // Atualizar status da reserva
+  var patch = {};
+  if(tipo === 'antecipo') patch.status = 'confirmada';
+  // Atualizar campos legados pago_anticipo / anticipo para compatibilidade
+  if(tipo === 'antecipo'){
+    patch.pago_anticipo = (typeof MEIO_LABEL === 'object' && MEIO_LABEL[meio]) ? MEIO_LABEL[meio] : meio;
+    patch.anticipo = valor_brl;
+  }
+  if(tipo === 'saldo'){
+    patch.pago_saldo = (typeof MEIO_LABEL === 'object' && MEIO_LABEL[meio]) ? MEIO_LABEL[meio] : meio;
+    patch.saldo_cobrado = valor_brl;
+  }
+  if(Object.keys(patch).length > 0){
+    await api("reservas?id=eq." + _pagRsvAtual.id, "PATCH", patch);
+  }
+
+  btn.disabled = false; btn.textContent = "Registrar pagamento e confirmar reserva";
+  document.getElementById("modalPagamentoReserva").classList.remove("open");
+  _pagRsvAtual = null;
+
+  // Refresh contextos
+  if(document.getElementById("viewBandejaReservas").classList.contains("active")) renderBandejaReservas();
+  if(typeof renderCaixa === 'function' && document.getElementById("viewCaixa") && document.getElementById("viewCaixa").classList.contains("active")) renderCaixa();
+
+  alert("✓ Pagamento registrado e reserva " + (tipo==='antecipo'?'confirmada':'atualizada') + "!");
+}
+
+// ═════════════════════════════════════════════════════════════════════
 // FICHA DO HÓSPEDE
 // ═════════════════════════════════════════════════════════════════════
 var _fichaReserva = null;
@@ -5093,6 +5376,16 @@ async function openFichaHospede(id){
   sb.className = "ficha-status " + stObj.cls;
   sb.textContent = stObj.label;
   document.getElementById("fichaStatusInfo").textContent = "Código #" + r.id + " · reserva " + (r.data_reserva ? fmtDate(r.data_reserva) : '—');
+
+  // Mostrar botão "Registrar pagamento" quando faltar antecipo ou saldo
+  var btnPagFi = document.getElementById("btnRegistrarPagFicha");
+  if(btnPagFi){
+    var temTotal = Number(r.total) > 0;
+    var faltaAnt = !r.pago_anticipo || String(r.pago_anticipo).trim() === "";
+    var faltaSaldo = temTotal && (!r.pago_saldo || String(r.pago_saldo).trim() === "");
+    btnPagFi.style.display = (faltaAnt || faltaSaldo) ? "" : "none";
+    btnPagFi.onclick = function(){ openPagamentoReservaModal(r.id, faltaAnt ? 'antecipo' : 'saldo'); };
+  }
 
   // Reserva
   document.getElementById("fkApto").value = r.apto || "";
@@ -5604,6 +5897,25 @@ function init(){
   if(btnDelR) btnDelR.addEventListener("click", cancelarReserva);
   var mFi = document.getElementById("modalFicha");
   if(mFi) mFi.addEventListener("click", function(e){ if(e.target === mFi) closeFichaModal(); });
+
+  // ─── Pagamento de Reserva ───
+  function closePagRsv(){ document.getElementById("modalPagamentoReserva").classList.remove("open"); _pagRsvAtual = null; }
+  var btnClPR = document.getElementById("btnClosePagRsv");
+  if(btnClPR) btnClPR.addEventListener("click", closePagRsv);
+  var btnCnPR = document.getElementById("btnCancelPagRsv");
+  if(btnCnPR) btnCnPR.addEventListener("click", closePagRsv);
+  var btnSvPR = document.getElementById("btnSalvarPagRsv");
+  if(btnSvPR) btnSvPR.addEventListener("click", salvarPagamentoReserva);
+  var selPRMeio = document.getElementById("pagRsvMeio");
+  if(selPRMeio) selPRMeio.addEventListener("change", function(){ pagRsvUpdateMoeda(); pagRsvCalcBRL(); pagRsvUpdateImpacto(); });
+  var selPRTipo = document.getElementById("pagRsvTipo");
+  if(selPRTipo) selPRTipo.addEventListener("change", pagRsvUpdateImpacto);
+  var inpPRVal = document.getElementById("pagRsvValor");
+  if(inpPRVal) inpPRVal.addEventListener("input", function(){ pagRsvCalcBRL(); pagRsvUpdateImpacto(); });
+  var inpPRCam = document.getElementById("pagRsvCambio");
+  if(inpPRCam) inpPRCam.addEventListener("input", pagRsvCalcBRL);
+  var mPR = document.getElementById("modalPagamentoReserva");
+  if(mPR) mPR.addEventListener("click", function(e){ if(e.target === mPR) closePagRsv(); });
 
   // ─── Calendário ───
   var btnCalPrev = document.getElementById("calMesPrev");

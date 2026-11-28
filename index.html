@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>if(typeof pdfjsLib !== 'undefined') pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
-<link rel="stylesheet" href="styles.css?v=0.16.4">
+<link rel="stylesheet" href="styles.css?v=0.17.0">
 </head>
 <body>
 
@@ -808,12 +808,108 @@
 
     <div class="modal-footer">
       <button class="btn-secondary" id="btnDeleteReserva" style="display:none">Cancelar reserva</button>
+      <button class="btn-primary" id="btnRegistrarPagFicha" style="display:none">💰 Registrar pagamento</button>
       <button class="btn-primary" id="btnSaveFicha">Salvar</button>
     </div>
   </div>
 </div>
 
 <!-- ══ MÓDULO CALENDÁRIO DE DISPONIBILIDADE ════════════════════════════ -->
+<!-- ══ BANDEJA DE RESERVAS ═════════════════════════════════════════════ -->
+<div id="viewBandejaReservas" class="view">
+  <div class="content">
+    <div class="module-header">
+      <button class="btn-back" data-nav="hubVendas">← Vendas</button>
+      <div class="module-title-block">
+        <div class="module-title">🔔 Bandeja de Reservas</div>
+        <div class="module-subtitle">Pendentes de ação</div>
+      </div>
+    </div>
+
+    <div class="band-kpis">
+      <div class="band-kpi band-k-urg"><div class="band-k-n" id="bandKpiUrg">—</div><div class="band-k-l">⚠️ Urgentes (&lt;6h)</div></div>
+      <div class="band-kpi band-k-ant"><div class="band-k-n" id="bandKpiAnt">—</div><div class="band-k-l">⏳ Aguardando antecipo</div></div>
+      <div class="band-kpi band-k-cot"><div class="band-k-n" id="bandKpiCot">—</div><div class="band-k-l">💬 Em cotização</div></div>
+      <div class="band-kpi band-k-pre"><div class="band-k-n" id="bandKpiPre">—</div><div class="band-k-l">🆕 Pré-reservas novas</div></div>
+    </div>
+
+    <div class="band-sections" id="bandejaBody">
+      <div class="loading">Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL PAGAMENTO RESERVA ═════════════════════════════════════════ -->
+<div class="overlay" id="modalPagamentoReserva">
+  <div class="modal modal-med">
+    <div class="modal-head">
+      <span class="modal-title" id="pagRsvTitle">Registrar pagamento</span>
+      <button class="btn-x" id="btnClosePagRsv">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="pagRsvReservaInfo" class="pag-rsv-info"></div>
+
+      <div class="row-2">
+        <div>
+          <label>Tipo <span class="req">*</span></label>
+          <select id="pagRsvTipo">
+            <option value="antecipo">Antecipo</option>
+            <option value="saldo">Saldo</option>
+            <option value="extras">Extras</option>
+          </select>
+        </div>
+        <div>
+          <label>Data <span class="req">*</span></label>
+          <input type="date" id="pagRsvData">
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div>
+          <label>Meio <span class="req">*</span></label>
+          <select id="pagRsvMeio">
+            <option value="inter_pix">💠 Inter · Pix</option>
+            <option value="bradesco_pix">🔵 Bradesco · Pix</option>
+            <option value="dinheiro_brl">💵 Dinheiro BRL</option>
+            <option value="dinheiro_usd">💵 Dinheiro USD</option>
+            <option value="dinheiro_ars">💵 Dinheiro ARS</option>
+            <option value="cartao_credito">💳 Cartão crédito</option>
+            <option value="cartao_debito">💳 Cartão débito</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div>
+          <label>Valor <span class="req">*</span></label>
+          <input type="number" id="pagRsvValor" step="0.01" placeholder="0,00">
+        </div>
+      </div>
+
+      <div class="row-2" id="pagRsvCambioRow" style="display:none">
+        <div>
+          <label>Câmbio (1 unid = R$)</label>
+          <input type="number" id="pagRsvCambio" step="0.0001" placeholder="Ex: 5.20">
+        </div>
+        <div>
+          <label>Equivalente em R$</label>
+          <input type="text" id="pagRsvValorBRL" readonly>
+        </div>
+      </div>
+
+      <label>Nº operação / Identificador</label>
+      <input type="text" id="pagRsvNroOp" placeholder="ID Pix, nro autorização...">
+
+      <label>Observações</label>
+      <textarea id="pagRsvObs" rows="2" placeholder="Opcional"></textarea>
+
+      <div class="pag-rsv-impacto" id="pagRsvImpacto"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" id="btnCancelPagRsv">Cancelar</button>
+      <button class="btn-primary" id="btnSalvarPagRsv">Registrar pagamento e confirmar reserva</button>
+    </div>
+  </div>
+</div>
+
 <div id="viewCalendario" class="view">
   <div class="content">
     <div class="module-header">
@@ -1550,6 +1646,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=0.16.4"></script>
+<script src="app.js?v=0.17.0"></script>
 </body>
 </html>

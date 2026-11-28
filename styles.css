@@ -2195,3 +2195,134 @@ a { color: var(--ocean); text-decoration: none; }
   color: var(--ocean);
   font-weight: 700;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v0.17.0 · Bandeja de Reservas
+   ═══════════════════════════════════════════════════════════════════ */
+
+.band-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+.band-kpi {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 14px 12px;
+  text-align: center;
+  border-left: 4px solid var(--muted);
+}
+.band-kpi.band-k-urg { border-left-color: #e74c3c; }
+.band-kpi.band-k-ant { border-left-color: #f39c12; }
+.band-kpi.band-k-cot { border-left-color: #3498db; }
+.band-kpi.band-k-pre { border-left-color: #2ecc71; }
+.band-k-n { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+.band-k-l { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.band-sections { display: flex; flex-direction: column; gap: 16px; }
+.band-section {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.band-section h3 {
+  font-size: 14px;
+  margin: 0 0 12px;
+  color: var(--text);
+  letter-spacing: 0.3px;
+}
+.band-sec-urg { border-top: 3px solid #e74c3c; }
+.band-sec-ant { border-top: 3px solid #f39c12; }
+.band-sec-cot { border-top: 3px solid #3498db; }
+.band-sec-pre { border-top: 3px solid #2ecc71; }
+
+.band-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.band-row:last-child { margin-bottom: 0; }
+.band-r-main { flex: 1 1 400px; min-width: 0; }
+.band-r-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.band-cod {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sand);
+  background: rgba(0,0,0,0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.band-nome {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.band-canal {
+  font-size: 11px;
+  background: rgba(52, 152, 219, 0.2);
+  color: #5dade2;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.band-timer {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-left: auto;
+}
+.band-timer.timer-ok   { background: rgba(46, 204, 113, 0.2); color: #58d68d; }
+.band-timer.timer-warn { background: rgba(243, 156, 18, 0.2); color: #f5b041; }
+.band-timer.timer-crit { background: rgba(231, 76, 60, 0.2);  color: #ec7063; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+.band-r-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.band-r-info span { white-space: nowrap; }
+.band-r-acoes {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.btn-sm {
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+}
+
+/* Modal pagamento reserva */
+.pag-rsv-info {
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+.pag-rsv-info .pri-row { margin: 2px 0; }
+.pag-rsv-impacto {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(52, 152, 219, 0.1);
+  border-left: 3px solid #3498db;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--text);
+}
